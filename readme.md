@@ -12,7 +12,7 @@ This is a personal budgeting web app to allow users to track their earnings, exp
 
 Install Node.js, clone the repo, open it in bash, run the following:
 
-```console
+```shell
 npm install
 ```
 
