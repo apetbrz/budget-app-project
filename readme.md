@@ -16,8 +16,6 @@ Install Node.js, clone the repo, open it in bash, run the following:
 npm install
 ```
 
----
-
 ### Running
 
 To launch, run the following in bash:
