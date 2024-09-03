@@ -17,3 +17,13 @@ npm install
 ```
 
 ---
+
+### Running
+
+To launch, run the following in bash:
+
+```shell
+npm run dev
+```
+
+---
