@@ -28,4 +28,4 @@ npm run dev
 
 ### Notes
 
-Going for simple enough CRUD functionality, before benchmarking with other languages. I will add comments to everything soon.
+Going for simple enough CRUD functionality, before benchmarking with other languages. I will add comments to everything soon. May need to restructure to further separate client/server code.
