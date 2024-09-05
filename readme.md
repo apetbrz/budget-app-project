@@ -25,3 +25,7 @@ npm run dev
 ```
 
 ---
+
+### Notes
+
+Going for simple enough CRUD functionality, before benchmarking with other languages. I will add comments to everything soon.
