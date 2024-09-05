@@ -3,14 +3,18 @@
   "version": "0.0.1",
   "description": "personal budget management webapp for CSCI511 group project",
   "main": "app.js",
+  "type": "module",
   "scripts": {
     "test": "test",
-    "dev": "node src/server/app.js"
+    "start": "nodemon src/server/app.js"
   },
   "author": "Arthur Petroff, Tyler Brown",
   "license": "ISC",
   "dependencies": {
     "budget-app-project": "file:",
-    "express": "^4.19.2"
+    "express": "^4.19.2",
+    "nodemon": "^3.1.4",
+    "sqlite3": "^5.1.7",
+    "uuid": "^10.0.0"
   }
 }
