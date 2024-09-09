@@ -2,6 +2,7 @@
   "name": "server",
   "version": "0.0.1",
   "main": "app.js",
+  "type": "module",
   "scripts": {
     "start": "nodemon src/app.js"
   },
@@ -11,6 +12,7 @@
   "dependencies": {
     "express": "^4.19.2",
     "nodemon": "^3.1.4",
+    "server": "file:",
     "sqlite3": "^5.1.7",
     "uuid": "^10.0.0"
   }

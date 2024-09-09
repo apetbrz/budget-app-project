@@ -1,6 +1,7 @@
 import express from 'express';
 import indexRoutes from './routes/index.js';
 import userRoutes from './routes/users.js';
+
 const app = express();
 const port = 3000;
 

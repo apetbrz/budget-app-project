@@ -4,15 +4,16 @@ import {v4 as uuidv4} from 'uuid';
 const authTableCreation = "auth(name text NOT NULL, uuid text NOT NULL)"
 const authTable = "auth"
 
-let dbPath = import.meta.dirname + "../db/users.db"
+let dbPath = import.meta.dirname + "\\..\\db\\users.db"
 
 let usersDatabase = new sqlite3.Database(dbPath, (err) => {
+    console.log(dbPath);
     if(err){
-        return console.error(err.message);
+        return console.table(err);
     }
     console.log("sqlite database connected")
 
-    //THIS CLEARS THE DATABASE ON START UP:
+    //FIXME: THIS CLEARS THE DATABASE ON START UP, FOR DEVELOPMENT:
     usersDatabase.run("DROP TABLE IF EXISTS " + authTable)
     //DONT FORGET ABOUT THIS!!!!
 
