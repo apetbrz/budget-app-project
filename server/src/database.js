@@ -4,7 +4,8 @@ import {v4 as uuidv4} from 'uuid';
 const authTableCreation = "auth(name text NOT NULL, uuid text NOT NULL)"
 const authTable = "auth"
 
-let dbPath = import.meta.dirname + "/database/users.db"
+let dbPath = import.meta.dirname + "../db/users.db"
+
 let usersDatabase = new sqlite3.Database(dbPath, (err) => {
     if(err){
         return console.error(err.message);
