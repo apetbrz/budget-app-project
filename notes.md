@@ -17,3 +17,8 @@ Realizing that just programming with no solid plan makes for very chaotic and in
 While JavaScript is tremendously helpful for learning how backend server code operates, it unfortunately has one issue: it is single-threaded. While possible to hack together a way to create other threads, it's limited to my physical CPU core count, as JS really can only be single-threaded per instance. So, while my CRUD API is not complete in JS, I'm going to stop work on it. Limiting how many threads I can use at a time is too debilitating for what I intended to be a highly multithreaded web app. Therefor, today marks me beginning work on a backend API written in Rust.
 
 Rust, unlike JS, is compiled down to machine code, and has *incredible* support for multithreading. I look forward to seeing how well it works!
+
+### 9/12/24:
+
+Researching into Rust server ecosystems has led me to countless libraries or packages or whatever else, to handle most of the hard work for me. Unfortunately for those, I wanted to really get down to the nitty gritty processing of HTTP requests/responses. I'm gonna be using bare-minimum dependencies, only the ones that speed up menial tasks (like actually parsing from strings to objects (for HTTP requests/responses, json, etc.)) or do things I can't do manually (like encryption).
+
