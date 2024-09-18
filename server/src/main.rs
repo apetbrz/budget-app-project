@@ -7,6 +7,9 @@ use std::io::prelude::*;
 use httparse;
 use http;
 
+mod http_utils;
+mod file_utils;
+
 fn main() {
     dotenv().ok();
 
@@ -20,14 +23,14 @@ fn main() {
 
         println!("{:?}", response);
 
-        stream.write(response.as_bytes()).unwrap();
+        stream.write(http_utils::stringify_response(&response).as_bytes()).unwrap();
 
         stream.flush().unwrap();
     }
-
 }
 
-fn handle_connection(mut stream: &TcpStream) -> String{
+fn handle_connection(mut stream: &TcpStream) -> http::Response<String>{
+
     let mut buffer = [0; 1024];
 
     stream.read(&mut buffer).unwrap();
@@ -36,33 +39,17 @@ fn handle_connection(mut stream: &TcpStream) -> String{
     let mut req = httparse::Request::new(&mut req_headers);
     let req_status = req.parse(&buffer).unwrap();
 
-    debug_print_req(&req);
+    println!("{}",http_utils::stringify_request(&req));
 
     let body = "<h1>hello pi world!</h1>";
+
     let res = http::Response::builder()
         .status(200)
         .header("Content-Type","text/html")
         .header("Content-Length", body.len())
-        .body(body.to_owned())
+        .body(String::from(body))
         .unwrap();
 
-    stringify(&res)
+    res
 
-}
-
-fn stringify(response: &http::Response<String>) -> String{
-    let mut out = format!("{:?} {:?}\r\n", response.version(), response.status());
-    for (name, value) in response.headers(){
-        out = out + &format!("{}: {}\r\n",name.to_string(), value.to_str().unwrap())[..];
-    }
-    out = out + "\r\n" + response.body();
-
-    out
-}
-
-fn debug_print_req(req: &httparse::Request){
-    println!("\n\nmethod: {}\npath: {}\nversion: {}\nheaders:\n",req.method.unwrap(), req.path.unwrap(), req.version.unwrap());
-    for header in req.headers.iter(){
-        println!("{:?}", header);
-    }
 }

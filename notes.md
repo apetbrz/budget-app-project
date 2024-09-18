@@ -22,3 +22,7 @@ Rust, unlike JS, is compiled down to machine code, and has *incredible* support 
 
 Researching into Rust server ecosystems has led me to countless libraries or packages or whatever else, to handle most of the hard work for me. Unfortunately for those, I wanted to really get down to the nitty gritty processing of HTTP requests/responses. I'm gonna be using bare-minimum dependencies, only the ones that speed up menial tasks (like actually parsing from strings to objects (for HTTP requests/responses, json, etc.)) or do things I can't do manually (like encryption).
 
+### 9/17/24:
+
+Last week I bought the hardware for the project, and spent the weekend getting it set up through Cloudflare. It worked well! I got a domain name, linked it all up, and now anyone can connect to a server running on my Raspberry Pi through a URL (currently `budget.nos-web.dev`)! I've also got simple enough HTTP server code written in Rust, I can successfully take in requests and create responses. I still need to handle things like file access and connecting to a database, but that's what I'm planning on getting to further this week. Going forward, I'm planning on writing many helper functions to make development much easier, for setting up things like routes and middleware. I'm enjoying writing all this from scratch, instead of just using some pre-made package for server code.
+
