@@ -10,22 +10,14 @@ This is a personal budgeting web app to allow users to track their earnings, exp
 
 ### Setup
 
-Install Node.js, clone the repo, open it in bash, run the following:
-
-```shell
-npm install
-```
+TODO
 
 ### Running
 
-To launch, run the following in bash:
-
-```shell
-npm run dev
-```
+TODO
 
 ---
 
 ### Notes
 
-Going for simple enough CRUD functionality, before benchmarking with other languages. I will add comments to everything soon. May need to restructure to further separate client/server code.
+Going for simple enough CRUD functionality, before adding functionality. I will add comments to everything soon. May need to restructure to further separate client/server code.
