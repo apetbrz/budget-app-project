@@ -27,7 +27,7 @@ fn main() {
 
         println!("\nresponse: {:?}", response);
 
-        stream.write(response.as_bytes()).unwrap();
+        stream.write(http_utils::stringify_response(&response).as_bytes()).unwrap();
 
         stream.flush().unwrap();
     }

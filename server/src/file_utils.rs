@@ -2,7 +2,7 @@ use std::fs::File;
 use std::path;
 use std::io::prelude::*;
 
-const static_files: Path = Path::new("/../../client/static");
+const CLIENT_FILE_PATH: Path = Path::new("/../../client/static");
 
 pub fn get_file_as_string(name: String) -> Result<String, String>{
     match File::open(name){
