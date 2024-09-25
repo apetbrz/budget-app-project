@@ -5,7 +5,7 @@ let register = async() => {
     let name = usernameText.value;
     let pw = passwordText.value;
     
-    let response = await fetch("/users/create", {
+    let response = await fetch("/users/register", {
         method: "post",
         headers: {
             "Content-Type": "application/json; charset=UTF-8"

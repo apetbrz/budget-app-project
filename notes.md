@@ -26,3 +26,14 @@ Researching into Rust server ecosystems has led me to countless libraries or pac
 
 Last week I bought the hardware for the project, and spent the weekend getting it set up through Cloudflare. It worked well! I got a domain name, linked it all up, and now anyone can connect to a server running on my Raspberry Pi through a URL (currently `budget.nos-web.dev`)! I've also got simple enough HTTP server code written in Rust, I can successfully take in requests and create responses. I still need to handle things like file access and connecting to a database, but that's what I'm planning on getting to further this week. Going forward, I'm planning on writing many helper functions to make development much easier, for setting up things like routes and middleware. I'm enjoying writing all this from scratch, instead of just using some pre-made package for server code.
 
+### 9/18/24:
+
+I began working on a system to route users, from the path in their HTTP request. I wanted to make it modular, so setting up new pages could be done easily. It's based on a HashMap, mapping from (String, String) tuples to function pointers. lol. I'm still iterating on better ways to store the key, but having the values in the map be function pointers makes it really easy to write code to handle different routes (URLs)!
+
+### 9/19/24
+
+The routing system is the most complicated part by far, so far. I'm working on cleaning it up and making it more structured and organized using different function calls instead of passing everything through one single central huge big annoying weird "String, String tuple to Function Pointer" map. Splitting things up lets me have different files/folders for the different "areas" of the webserver, like user-auth handling routes and file accessing routes.
+
+### 9/23/24
+
+Continued work on the routing system. Implementing a tree-like structure instead of flat maps. It mostly works, but I'm still polishing the structure so that functions can take in both the path itself and any potential http POST request body data as parameters. I'll finish this up soon. Afterwards, it's on to setting up the database!!!! I'll be honest, using a framework would've probably been easier (and more performant, because async/await structure is more efficient than just raw multithreading with infinite threads), but I wanted to manually make parallelized code, instead of letting some framework black box do everything for me.

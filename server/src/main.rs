@@ -1,59 +1,34 @@
+//dotenv: enables using .env file for variables
+//TODO: verbose debug print variable
 extern crate dotenv;
 use dotenv::dotenv;
 use std::env;
 
-use std::net::{TcpListener, TcpStream};
-use std::io::prelude::*;
-use httparse;
-use http;
-
+//internal modules:
+//holds server struct
+mod server;
+//used for managing/creating HTTP responses/requests
 mod http_utils;
+//used for interacting with files
 mod file_utils;
+//used for routing user connections
+mod router;
+//used for holding endpoint handler functions
+mod endpoints;
+//used for managing database
+mod db;
+//used for multithreading user connections
+mod auth;
 
-fn main() {
+//entrypoint
+fn main() -> Result<(), String>{
+    //get .env variables
     dotenv().ok();
 
+    //default host address: localhost:3000
     let host_address = format!("127.0.0.1:{}", env::var("SERVER_PORT").expect("SERVER_PORT value in .env file"));
-    let listener = TcpListener::bind(&host_address).expect(&format!("listener should have bound to {}", host_address)[..]);
+    
+    let server = server::Server::new(host_address);
 
-    let mut req_count = 0;
-
-    for stream in listener.incoming(){
-        let mut stream = stream.unwrap();
-
-        req_count += 1;
-
-        let response = handle_connection(&stream);
-
-        println!("\nresponse: {:?}", response);
-
-        stream.write(http_utils::stringify_response(&response).as_bytes()).unwrap();
-
-        stream.flush().unwrap();
-    }
-}
-
-fn handle_connection(mut stream: &TcpStream) -> http::Response<String>{
-
-    let mut buffer = [0; 1024];
-
-    stream.read(&mut buffer).unwrap();
-
-    let mut req_headers = [httparse::EMPTY_HEADER; 64];
-    let mut req = httparse::Request::new(&mut req_headers);
-    let req_status = req.parse(&buffer).unwrap();
-
-    println!("{}",http_utils::stringify_request(&req));
-
-    let body = "<h1>hello pi world!</h1>";
-
-    let res = http::Response::builder()
-        .status(200)
-        .header("Content-Type","text/html")
-        .header("Content-Length", body.len())
-        .body(String::from(body))
-        .unwrap();
-
-    res
-
+    server.listen()
 }
