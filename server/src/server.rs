@@ -101,6 +101,7 @@ impl Server{
             httparse::Status::Complete(body_index) => {
 
                 let mut body = buffer[body_index..].to_vec();
+                //TODO: WHY BODY EMPTY SOMETIMES???????
                 body.retain(|x| *x != 0 as u8);
 
                 //grab the request body
