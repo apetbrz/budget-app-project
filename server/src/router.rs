@@ -7,7 +7,7 @@ use NodeData::*;
 use http_bytes::http;
 
 use crate::http_utils;
-use crate::endpoints;
+use crate::endpoints::{self, Endpoint};
 
 //RouteNode: struct for each node in routing tree. holds an id (path/subpath)
 //Done as a routing tree to allow for sub-routes and all that
@@ -34,13 +34,13 @@ impl RouteNode{
                 Ok holds a reference to a Box pointing to a handler function for the given path
                 Err holds a string, giving an explanation for the error
     */
-    pub fn route(&self, path: &mut path::Iter) -> Result<&Box<dyn Fn(&mut path::Iter, Option<String>) -> Result<http::Response<Vec<u8>>, String>>, String>{
+    pub fn route(&self, path: &mut path::Iter) -> Result<&Endpoint, String>{
         
         //check for what type of data this node holds:
         match &self.data{
 
             //if holding subnodes (tree structure),
-            Subnodes(child_nodes) => {
+            Branch(child_nodes) => {
                 
                 //get the next string in the URL path (since it's an iterator)
                 let target = path.next().unwrap_or(&OsStr::new("/"));
@@ -59,7 +59,7 @@ impl RouteNode{
                 }
             },
             //if holding an endpoint,
-            Endpoint(func_box) => {
+            Leaf(func_box) => {
                 //we found our target! return the pointer to the handler function
                 return Ok(func_box);
             }
@@ -91,7 +91,7 @@ impl RouteNode{
                 match &mut self.data{
                     
                     //if holding sub nodes,
-                    Subnodes(child_nodes) => {
+                    Branch(child_nodes) => {
 
                         //get a mutable reference to the target out of the map
                         match child_nodes.get_mut(str){
@@ -110,7 +110,7 @@ impl RouteNode{
                     },
 
                     //if holding an endpoint,
-                    Endpoint(_func_box) => {
+                    Leaf(_func_box) => {
                         //we can't search further! but theres still things in the path!
                         //return an error
                         Err(format!{"looking for subpath {:?} but ran into endpoint", target})
@@ -140,11 +140,11 @@ impl RouteNode{
     pub fn add_child(&mut self, id: &str, node_data: NodeData) -> &mut RouteNode{
         let os_id = OsString::from(id);
         match &mut self.data{
-            Subnodes(map) => {
+            Branch(map) => {
                 map.insert(OsString::from(os_id.clone()), Box::from(RouteNode::new(node_data)));
                 return self;
             },
-            Endpoint(_) => {
+            Leaf(_) => {
                 panic!("DONT ADD CHILDREN TO AN ENDPOINT SILLY");
             }
         }
@@ -155,11 +155,11 @@ impl RouteNode{
     pub fn add_and_select_child(&mut self, id: &str, node_data: NodeData) -> &mut RouteNode{
         let os_id = OsString::from(id);
         match &mut self.data{
-            Subnodes(map) => {
+            Branch(map) => {
                 map.insert(OsString::from(os_id.clone()), Box::from(RouteNode::new(node_data)));
                 return map.get_mut(&os_id).expect("somehow could not find the node i just added");
             },
-            Endpoint(_) => {
+            Leaf(_) => {
                 panic!("DONT ADD CHILDREN TO AN ENDPOINT SILLY");
             }
         }
@@ -168,10 +168,10 @@ impl RouteNode{
     //get_children(): returns the node's own subnode map
     pub fn get_children(&self, id: &OsString) -> Result<&HashMap<OsString, Box<RouteNode>>, String>{
         match &self.data{
-            Subnodes(map) => {
+            Branch(map) => {
                 Ok(&map)
             },
-            Endpoint(_) => {
+            Leaf(_) => {
                 Err(format!("attempted to get children of an endpoint node at {:?}", id))
             }
         }
@@ -181,8 +181,8 @@ impl RouteNode{
 
 //NodeData: data types that a node can hold: either childnodes or endpoints (functions)
 enum NodeData{
-    Subnodes(HashMap<OsString, Box<RouteNode>>),
-    Endpoint(Box<dyn Fn(&mut path::Iter, Option<String>) -> Result<http::Response<Vec<u8>>, String>>)
+    Branch(HashMap<OsString, Box<RouteNode>>),
+    Leaf(Endpoint)
 }
 
 //Router: larger struct for building and holding RouteNode trees
@@ -201,27 +201,24 @@ impl Router{
     //Router::route(): follow the path for the appropriate http method, 
     //find its endpoint, run it with the rest of the path as arguments, and return the response
     //TODO: return result instead of just crashing
-    pub fn route(&self, path_iterator: &mut path::Iter, method: http_utils::RequestMethod) -> http::Response<Vec<u8>>{
+    pub fn route(&self, path_iterator: &mut path::Iter, method: &str) -> Result<&Endpoint, &Box<dyn Fn() -> http::Response<Vec<u8>>>>{
         
         let tree: &RouteNode;
-        let body: Option<String>;
 
         //then, check what HTTP method the request used, and select the proper tree/data for it
-        match method{
+        match method.to_lowercase().as_str(){
             
             //GET:
-            http_utils::RequestMethod::GET => {
+            "get" => {
                 tree = &self.get;
-                body = None;
             },
 
             //POST:
-            http_utils::RequestMethod::POST(data) => {
+            "post" => {
                 tree = &self.post;
-                body = data;
             },
-            http_utils::RequestMethod::INVALID => {
-                return (*self.bad_request)()
+            _ => {
+                return Err(&self.bad_request)
             }
         }
         
@@ -230,52 +227,39 @@ impl Router{
                     
             //if found, we have the target handler function
             Ok(func) => {
-
-                //run it, passing in the path iterator, and nothing for the string argument (as GET requests have no body)
-                match (*func)(path_iterator, body){
-                    
-                    //if we get a response, return it
-                    Ok(res) => res,
-
-                    //if the function returns an error, 
-                    Err(why) => {
-                        //print it out
-                        println!("{}",why);
-                        //and return a 400 BAD REQUEST
-                        (*self.bad_request)()
-                    }
-                }
+                Ok(func)
             },
 
             //if not found, print the error, and return a 404 NOT FOUND
             Err(why) => {
                 println!("ERROR: {}", why);
-                (*self.not_found)()
+                Err(&self.not_found)
             }
         }
     }
 
     //build_get_routes(): builds the GET method routes
     fn build_get_routes() -> RouteNode{
-        let mut tree: RouteNode = RouteNode::new(NodeData::Subnodes(HashMap::new()));
+        let mut tree: RouteNode = RouteNode::new(NodeData::Branch(HashMap::new()));
         
-        tree.add_and_select_child("/", Subnodes(HashMap::new()))
-        .add_child("/", Endpoint(Box::new(endpoints::index::index)))
-        .add_child("hello_world", Endpoint(Box::new(endpoints::index::hello_world)))
-        .add_child("file", Endpoint(Box::new(endpoints::files::get_file)))
-        .add_child("favicon.ico", Endpoint(Box::new(endpoints::files::favicon)));
+        tree.add_and_select_child("/", Branch(HashMap::new()))
+        .add_child("/", Leaf(Endpoint::func(Box::new(endpoints::index::index))))
+        .add_child("hello_world", Leaf(Endpoint::func(Box::new(endpoints::index::hello_world))))
+        .add_child("file", Leaf(Endpoint::func(Box::new(endpoints::files::get_file))))
+        .add_child("favicon.ico", Leaf(Endpoint::func(Box::new(endpoints::files::favicon))))
+        ;
         
         tree
     }
 
     //build_post_routes(): builds the POST method routes
     fn build_post_routes() -> RouteNode{
-        let mut tree: RouteNode = RouteNode::new(NodeData::Subnodes(HashMap::new()));
+        let mut tree: RouteNode = RouteNode::new(NodeData::Branch(HashMap::new()));
         
-        tree.add_and_select_child("/", Subnodes(HashMap::new()))
-        .add_and_select_child("users", Subnodes(HashMap::new()))
-        .add_child("register", Endpoint(Box::new(endpoints::users::register)))
-        //chain .add_child() calls here
+        tree.add_and_select_child("/", Branch(HashMap::new()))
+        .add_and_select_child("users", Branch(HashMap::new()))
+        .add_child("register", Leaf(Endpoint::RegisterRequest))
+        .add_child("login", Leaf(Endpoint::LoginRequest))
         ;
 
         tree

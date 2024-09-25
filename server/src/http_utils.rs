@@ -1,28 +1,21 @@
 use http_bytes::http::{self, status};
-use std::{ffi::OsStr, io::{BufReader, BufWriter, Read, Write}, path::Path};
-use serde::{Serialize};
+use httparse::{Header, Status};
+use std::{ffi::OsStr, io::{BufReader, Read, Write}, net::TcpStream, path::Path};
 use http_bytes;
 
 use crate::file_utils;
 
 const REQ_BODY_TRUNCATE_LEN: usize = 128;
 
-//RequestMethod: defines supported HTTP req methods, and holds the request body if needed
-pub enum RequestMethod{
-    GET,
-    POST(Option<String>),
-    INVALID
-}
-impl RequestMethod{
-    //parse(): takes a string representation of the method type, and optional data, and returns the proper enum
-    pub fn parse(str: &str, body: Option<String>) -> RequestMethod{
-        let str = str.to_lowercase();
-        match str.as_str(){
-            "get" => RequestMethod::GET,
-            "post" => RequestMethod::POST(body),
-            _ => RequestMethod::INVALID
-        }
-    }
+pub fn send_response(response: &mut http::Response<Vec<u8>>, stream: &mut TcpStream) -> Result<(), std::io::Error>{
+    //print the response
+    println!("\nresponse:\n{}", stringify_response(response));
+
+    //write the response to TCP connection stream, as bytes
+    stream.write_all(&*serialize_response(response)).unwrap();
+
+    //"flush" the stream to send it out
+    stream.flush()
 }
 
 //serialize_response(): takes a mutable reference to a response
@@ -41,7 +34,7 @@ pub fn stringify_response(response: &http::Response<Vec<u8>>) -> String{
         out = out + &format!("{}: {}\r\n",name.to_string(), value.to_str().unwrap())[..];
     }
     
-    let mut body = String::from_utf8(response.body().clone()).expect("failed utf8 parse");
+    let mut body = String::from_utf8_lossy(response.body()).to_string();
     let len = body.len();
     body.truncate(REQ_BODY_TRUNCATE_LEN);
 
