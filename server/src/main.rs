@@ -21,13 +21,17 @@ mod db;
 mod auth;
 
 //entrypoint
-fn main() -> Result<(), String>{
+fn main() -> Result<(), String> {
     //get .env variables
     dotenv().ok();
+    env::set_var("RUST_BACKTRACE", "full");
 
     //default host address: localhost:3000
-    let host_address = format!("127.0.0.1:{}", env::var("SERVER_PORT").expect("SERVER_PORT value in .env file"));
-    
+    let host_address = format!(
+        "127.0.0.1:{}",
+        env::var("SERVER_PORT").expect("SERVER_PORT value in .env file")
+    );
+
     let mut server = server::Server::new(host_address);
 
     server.listen()

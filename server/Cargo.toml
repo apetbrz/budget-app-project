@@ -9,8 +9,10 @@ dotenv = "0.15.0"
 http = "1.1.0"
 http-bytes = "0.1.0"
 httparse = "1.9.4"
+jsonwebtoken = "9.3.0"
 r2d2 = "0.8.10"
 r2d2_sqlite = "0.25.0"
+ratatui = "0.28.1"
 rusqlite = { version = "0.32.1", features = ["bundled", "uuid"] }
 serde = { version = "1.0.210", features = ["derive"] }
 serde_json = "1.0.128"
