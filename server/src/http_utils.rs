@@ -94,6 +94,15 @@ pub fn ok() -> Result<http::Response<Vec<u8>>, String> {
         .unwrap())
 }
 
+pub fn ok_json(body: String) -> Result<http::Response<Vec<u8>>, String> {
+    Ok(http::Response::builder()
+        .status(200)
+        .header("Content-Type", "application/json")
+        .header("Content-Length", body.len())
+        .body(body.as_bytes().to_vec())
+        .unwrap())
+}
+
 //grabs a file and returns it with a proper HTTP response for the file type
 pub fn ok_file(filename: &OsStr) -> Result<http::Response<Vec<u8>>, String> {
     let path = Path::new(filename);

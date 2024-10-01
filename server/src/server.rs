@@ -27,7 +27,7 @@ impl Server {
             .expect(&format!("listener should have bound to {}", address)[..]);
         let router = Router::new();
 
-        db::AUTH_DB
+        db::USER_DB
             .read()
             .unwrap()
             .create_table(env::var("AUTH_DATABASE_INIT").expect("AUTH_DATABASE_INIT in .env"));

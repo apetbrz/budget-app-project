@@ -7,8 +7,9 @@ use r2d2_sqlite;
 use rusqlite;
 use serde::{Deserialize, Serialize};
 
-pub static AUTH_DB: LazyLock<RwLock<Database>> =
-    LazyLock::new(|| RwLock::new(Database::new("auth")));
+//these two static variables ARE THE DATABASES
+//im statically initializing a RwLock-ed reference
+//to a pool of database connections, to the file
 pub static USER_DB: LazyLock<RwLock<Database>> =
     LazyLock::new(|| RwLock::new(Database::new("user")));
 
@@ -44,8 +45,22 @@ impl Database {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+pub struct UserAuthRow {
+    pub uuid: uuid::Uuid,
+    pub username: String,
+    pub password: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
 pub struct UserCredentials {
     pub username: String,
     pub password: String,
 }
 impl UserCredentials {}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct UserInfo {
+    pub id: String,
+    pub username: String,
+}
+impl UserInfo {}
