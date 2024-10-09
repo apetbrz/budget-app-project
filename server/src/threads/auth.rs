@@ -1,8 +1,11 @@
-use std::net::TcpStream;
+use std::time::Instant;
+use std::{net::TcpStream, time::Duration};
 use std::sync::mpsc;
 use std::thread;
 
-use crate::{endpoints, http_utils};
+use crate::{endpoints, http_utils, threads::user_threads};
+
+use super::user_threads::UserManagerThreadMessage;
 
 //AuthRequest: the basic packet sent from the main thread to the Auth thread
 //packet type determines what route to take
@@ -19,12 +22,17 @@ pub enum AuthRequest {
 pub fn handle_auth_requests(
     thread_sender: mpsc::Sender<AuthRequest>,
     thread_receiver: mpsc::Receiver<AuthRequest>,
+    sender_to_user_threads: mpsc::Sender<UserManagerThreadMessage>
 ) {
+    
     //maybe redundant, but initialize communication channel constants
     let (sender, receiver) = (thread_sender, thread_receiver);
 
     //iterate through host->thread reception channel, yielding if empty
     for req in receiver.iter() {
+
+        let now = Instant::now();
+
         //once hearing something, check its type
         match req {
             //register: create user in databases if possible
@@ -57,5 +65,6 @@ pub fn handle_auth_requests(
                 .unwrap();
             }
         }
+        println!("auth thread took: {:?}", now.elapsed());
     }
 }

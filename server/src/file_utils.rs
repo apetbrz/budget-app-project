@@ -2,11 +2,15 @@ use std::ffi::{OsStr, OsString};
 use std::fs::{self, File, Metadata};
 use std::io::prelude::*;
 use std::path::PathBuf;
+use std::collections::HashMap;
+use std::sync::{LazyLock, Mutex};
 
 use http_bytes::http;
 
 //CLIENT_FILE_PATH: the location of the files that will be sent to client
 const CLIENT_FILE_PATH: &str = "../client/static";
+
+static FILE_CACHE: LazyLock<Mutex<HashMap<OsString, File>>> = LazyLock::new(|| Mutex::new(HashMap::new()));
 
 fn sanitize_filename(filename: &OsStr) -> String {
     //i dont want people to dig through my filesystem using "../" to exit folder
@@ -33,11 +37,18 @@ pub fn get_file(filename: &OsStr) -> Result<File, String> {
 
     //debug print
     //println!("attempting to get file from: {:?}", filepath);
-
+    if let Some(file) = FILE_CACHE.lock().unwrap().get(filename){
+        println!("file grabbed from cache!");
+        return Ok(file.try_clone().unwrap());
+    }
     //open the file
     match File::open(filepath.as_path()) {
         //if found, return it
-        Ok(file) => Ok(file),
+        Ok(file) => {
+            FILE_CACHE.lock().unwrap().insert(OsString::from(filename), file.try_clone().unwrap());
+            println!("file cached!");
+            Ok(file)
+        },
         //otherwise, return an error with the err string
         Err(err) => Err(err.to_string()),
     }

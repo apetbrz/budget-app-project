@@ -17,8 +17,10 @@ mod router;
 mod endpoints;
 //used for managing database
 mod db;
-//used for multithreading user connections
-mod auth;
+//used for holding thread code
+mod threads;
+//used for budgeting functionality
+mod budget;
 
 //entrypoint
 fn main() -> Result<(), String> {

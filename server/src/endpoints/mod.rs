@@ -7,13 +7,18 @@ use std::path;
 
 use http_bytes::http;
 
-pub enum Endpoint{
-    FunctionHandler(Box<dyn Fn(&mut path::Iter, Option<String>) -> Result<http::Response<Vec<u8>>, String>>),
+pub enum Content {
+    HandlerFunction(
+        Box<dyn Fn(&mut path::Iter, Option<String>) -> Result<http::Response<Vec<u8>>, String>>,
+    ),
     LoginRequest,
-    RegisterRequest
+    RegisterRequest,
+    UserCommand
 }
-impl Endpoint{
-    pub fn func(func: Box<dyn Fn(&mut path::Iter, Option<String>) -> Result<http::Response<Vec<u8>>, String>>) -> Endpoint{
-        Endpoint::FunctionHandler(func)
-    }
+pub fn new_func_endpoint(
+    func: Box<
+        dyn Fn(&mut path::Iter, Option<String>) -> Result<http::Response<Vec<u8>>, String>,
+    >,
+) -> Content {
+    Content::HandlerFunction(func)
 }

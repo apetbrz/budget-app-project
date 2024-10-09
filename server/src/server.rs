@@ -3,24 +3,32 @@ use std::io::{prelude::*, BufReader};
 use std::net::{TcpListener, TcpStream};
 use std::sync::mpsc;
 
+use std::time::{Duration, Instant};
 use std::{env, path, thread};
 
 //external crates:
 //used for parsing HTTP requests into objects
-use httparse;
+use httparse::{self, Header};
 
-use crate::auth::{self, AuthRequest};
+use crate::threads::auth::{self, AuthRequest};
 use crate::db;
-use crate::endpoints::Endpoint;
+use crate::endpoints::Content;
 use crate::http_utils;
 use crate::router::Router;
+use crate::threads::user_threads::{self, UserManagerThreadMessage};
+
+//the limit on http request size (i cant imagine i'd need more than 1kb)
+const MAX_REQUEST_BYTES: usize = 1024;
 
 pub struct Server {
     listener: TcpListener,
     router: Router,
     auth_thread_sender: Option<mpsc::Sender<AuthRequest>>,
     auth_thread_receiver: Option<mpsc::Receiver<AuthRequest>>,
+    users_thread_sender: Option<mpsc::Sender<UserManagerThreadMessage>>,
+    users_thread_receiver: Option<mpsc::Receiver<UserManagerThreadMessage>>,
 }
+//TODO: FIND WAY TO REMOVE THE Option FROM THE STRUCT^^^ its annoying
 impl Server {
     pub fn new(address: String) -> Server {
         let listener = TcpListener::bind(&address)
@@ -41,7 +49,23 @@ impl Server {
             router,
             auth_thread_sender: None,
             auth_thread_receiver: None,
+            users_thread_sender: None,
+            users_thread_receiver: None,
         }
+    }
+
+    pub fn send_message_to_auth_thread(
+        &self,
+        msg: AuthRequest,
+    ) -> Result<(), mpsc::SendError<AuthRequest>> {
+        self.auth_thread_sender.as_ref().unwrap().send(msg)
+    }
+
+    pub fn send_message_to_user_thread(
+        &self,
+        msg: UserManagerThreadMessage,
+    ) -> Result<(), mpsc::SendError<UserManagerThreadMessage>> {
+        self.users_thread_sender.as_ref().unwrap().send(msg)
     }
 
     //listen(): loops forever through incoming TCP streams and handles them
@@ -54,16 +78,32 @@ impl Server {
         self.auth_thread_sender = Some(host_sender);
         self.auth_thread_receiver = Some(host_receiver);
 
+        let (user_host_sender, user_thread_receiver) = mpsc::channel::<user_threads::UserManagerThreadMessage>();
+        let (user_thread_sender, user_host_receiver) = mpsc::channel::<user_threads::UserManagerThreadMessage>();
+        let timer_thread_sender = user_host_sender.clone();
+
+        self.users_thread_sender = Some(user_host_sender.clone());
+        self.users_thread_receiver = Some(user_host_receiver);
+
         thread::spawn(move || {
-            auth::handle_auth_requests(thread_sender, thread_receiver);
+            user_threads::handle_user_threads(user_thread_sender, user_thread_receiver);
         });
+
+        thread::spawn(move || {
+            auth::handle_auth_requests(thread_sender, thread_receiver, user_host_sender);
+        });
+        
+        thread::spawn(move || {
+            generate_timeout_checks(timer_thread_sender);
+        });
+
 
         //request counting statistic
         let mut req_count = 0;
 
         //iterate through incoming TCP connections/requests
         for stream in self.listener.incoming() {
-            let now = std::time::Instant::now();
+            let now = Instant::now();
 
             match stream {
                 Ok(stream) => {
@@ -88,7 +128,7 @@ impl Server {
     //handle_connection(): reads the given TCP stream and sends back a response, using the given Router
     fn handle_connection(&self, mut stream: TcpStream) -> Result<(), std::io::Error> {
         //buffer bytes, to store request in
-        let mut buffer: [u8; 4096] = [0; 4096];
+        let mut buffer: [u8; MAX_REQUEST_BYTES] = [0; MAX_REQUEST_BYTES];
         //TODO: check if size is ok? 4kb? how big are requests really?
 
         //create a buffered reader to read through the stream input
@@ -106,6 +146,7 @@ impl Server {
         //read lines from tcp stream until end of headers (empty line)
         loop {
             let bytes_read = reader.read_line(&mut headers).unwrap();
+            // \r\f = 2 bytes
             if bytes_read < 3 {
                 break;
             }
@@ -150,10 +191,13 @@ impl Server {
         let mut vec_buf = [headers, body.as_slice()].concat();
 
         //resize the new vec buffer to fit into the byte array buffer
-        vec_buf.resize(4096, 0);
+        vec_buf.resize(MAX_REQUEST_BYTES, 0);
 
         //copy the vec into the array buffer
         buffer.copy_from_slice(vec_buf.as_slice());
+
+        //dont need this anymore
+        drop(vec_buf);
 
         //i have to do this [u8] shit because httparse ONLY works on arrays, NOT vectors. L
 
@@ -163,15 +207,18 @@ impl Server {
 
         //req_status: whether the request was successfully received entirely, without data loss
         let req_status = req.parse(&buffer).unwrap();
+
+        //print the request method and path
         println!(
             "{} {}",
             req.method.unwrap_or("NONE"),
             req.path.unwrap_or("NONE")
         );
 
+        //Option likely not needed tbh
         let mut body: Option<String>;
 
-        //check the req status (probably redundant tbh. TODO: remove)
+        //check the req status, send bad_request if not complete (probably not needed)
         match req_status {
             //if complete request,
             httparse::Status::Complete(body_index) => {
@@ -192,7 +239,10 @@ impl Server {
             }
             //if partial request, just crash. i dont think i even need this
             httparse::Status::Partial => {
-                todo!("handle partial request")
+                return http_utils::send_response(
+                    &mut http_utils::bad_request().unwrap(),
+                    &mut stream,
+                );
             }
         }
 
@@ -207,45 +257,104 @@ impl Server {
             //if Ok, we landed on an endpoint, so handle it accordingly
             Ok(endpoint) => match endpoint {
                 //if its a function, run it, and send its response back to the client
-                //TODO: RENAME TO Content
-                Endpoint::FunctionHandler(func) => {
+                Content::HandlerFunction(func) => {
+                    //send a response:
                     return http_utils::send_response(
+                        //the response being the output of the given function (TODO: HANDLE ERROR?)
                         &mut func(&mut path_iterator, body).unwrap(),
                         &mut stream,
                     );
                 }
-                Endpoint::RegisterRequest => match body {
-                    Some(body) => Ok(self
-                        .auth_thread_sender
-                        .as_ref()
-                        .unwrap()
-                        .send(AuthRequest::Register {
+                //if it's a registration endpoint, tell the auth thread to handle it
+                //pass the req body (json) and TCP stream
+                Content::RegisterRequest => match body {
+                    //if the body exists, 
+                    Some(body) => {
+                        //send a message containing it (and the tcp stream) to the auth thread
+                        match self.send_message_to_auth_thread(AuthRequest::Register {
                             jsondata: body,
-                            stream,
-                        })
-                        .unwrap()),
+                            stream: stream,
+                        }) {
+                            //if successful, great!
+                            Ok(()) => {
+                                //TODO: CREATE USER THREAD
+                                Ok(())
+                            },
+                            //if failed, the auth thread is broken! cant do anything! crash!
+                            Err(send_error) => {
+                                //IF THIS IS REACHED, OH NO! I LOST THE TCP STREAM
+                                //CRY!! PEE MY PANTS!!! I DONT KNOW!!! LET THE CLIENT TIME OUT!
+                                println!("AUTH THREAD LOST!!! - {:?}", send_error);
+                                panic!("auth thread failure!")
+                            }
+                        }
+                    },
+                    //if the body doesnt exist, dont even bother sending it, jsut send a bad_request back
                     None => http_utils::send_response(
                         &mut http_utils::bad_request().unwrap(),
                         &mut stream,
                     ),
                 },
-                Endpoint::LoginRequest => match body {
-                    Some(body) => Ok(self
-                        .auth_thread_sender
-                        .as_ref()
-                        .unwrap()
-                        .send(AuthRequest::Login {
+                //if it's a login endpoint, tell the auth thread to handle it
+                //pass the req body (json) and TCP stream
+                Content::LoginRequest => match body {
+                    Some(body) => {
+                        match self.send_message_to_auth_thread(AuthRequest::Login {
                             jsondata: body,
-                            stream,
-                        })
-                        .unwrap()),
+                            stream: stream,
+                        }) {
+                            Ok(()) => {
+                                //TODO: CREATE USER THREAD
+                                Ok(()) 
+                            },
+                            Err(send_error) => {
+                                //IF THIS IS REACHED, OH NO! I LOST THE TCP STREAM
+                                //CRY!! PEE MY PANTS!!! I DONT KNOW!!! LET THE CLIENT TIME OUT!
+                                println!("AUTH THREAD LOST!!! - {:?}", send_error);
+                                panic!("auth thread failure!")
+                            }
+                        }
+                    },
                     None => http_utils::send_response(
                         &mut http_utils::bad_request().unwrap(),
                         &mut stream,
                     ),
                 },
+                Content::UserCommand => {
+
+                    let mut token = String::new();
+                    req_headers.iter().find(|header| header.name.eq_ignore_ascii_case("authorization")).unwrap().value.clone().read_to_string(&mut token);
+
+                    match body {
+                        Some(body) => {
+                            match self.send_message_to_user_thread(UserManagerThreadMessage::UserCommand { token: token, jsondata: body, stream: stream }){
+                                Ok(()) => {
+                                    //TODO: Something?
+                                    Ok(())
+                                },
+                                Err(send_error) => {
+                                    println!("USER HANDLER THREAD LOST!!! - {:?}", send_error);
+                                    panic!("user thread failure!")
+                                }
+                            }
+                        },
+                        None => http_utils::send_response(
+                            &mut http_utils::bad_request().unwrap(),
+                            &mut stream,
+                        ),
+                    }
+                }
             },
+            //if no endpoint is found, run the router's not found handler
             Err(handler) => return http_utils::send_response(&mut handler(), &mut stream),
         }
+    }
+}
+
+
+fn generate_timeout_checks(channel: mpsc::Sender<user_threads::UserManagerThreadMessage>) {
+    loop {
+        thread::sleep(Duration::from_secs(10));
+        channel.send(user_threads::UserManagerThreadMessage::TimeoutCheck);
     }
 }

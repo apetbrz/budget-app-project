@@ -1,5 +1,5 @@
 var usernameText = document.getElementById("username");
-var passwordText = document.getElementById("password")
+var passwordText = document.getElementById("password");
 
 let register = async() => {
     let name = usernameText.value;
@@ -16,7 +16,14 @@ let register = async() => {
             "Content-Length": body.length
         },
         body: body
-    }).then((res) => res.json());
+    });
+
+    let response_body = await response.json();
+
+    if(response_body.token) {
+        sessionStorage.setItem("token", response_body.token);
+        window.location.replace(response.headers.get("Location"));
+    }
 
     console.table(response);
 }
@@ -35,6 +42,12 @@ let login = async() => {
         },
         body: body
     }).then((res) => res.json());
+
+    if(response_body.token) {
+        sessionStorage.setItem("token", response_body.token);
+        window.location.replace(response.headers.get("Location"));
+
+    }
 
     console.table(response);
 }

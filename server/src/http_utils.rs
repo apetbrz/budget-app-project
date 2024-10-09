@@ -1,6 +1,9 @@
 use http_bytes;
+use http_bytes::http::response::Builder;
 use http_bytes::http::{self, status};
 use httparse::{Header, Status};
+use std::fs::File;
+use std::io::Seek;
 use std::{
     ffi::OsStr,
     io::{BufReader, Read, Write},
@@ -11,6 +14,9 @@ use std::{
 use crate::file_utils;
 
 const REQ_BODY_TRUNCATE_LEN: usize = 128;
+
+const CONTENT_TEXT: &str = "text/plain";
+const CONTENT_JSON: &str = "application/json";
 
 pub fn send_response(
     response: &mut http::Response<Vec<u8>>,
@@ -27,6 +33,7 @@ pub fn send_response(
 }
 
 //serialize_response(): takes a mutable reference to a response
+//turns it into bytes to be sent
 pub fn serialize_response(response: &mut http::Response<Vec<u8>>) -> Vec<u8> {
     let mut out: Vec<u8> = Vec::new();
     http_bytes::write_response_header(response, &mut out).expect("serialization to bytes failed");
@@ -64,7 +71,7 @@ pub fn stringify_response(response: &http::Response<Vec<u8>>) -> String {
 //like above but for requests
 pub fn stringify_request(req: &httparse::Request) -> String {
     let mut out = format!(
-        "method: {}\npath: {}\nversion: {}\nheaders:\n",
+        "{} {}\nversion: {}\nheaders:\n",
         req.method.unwrap(),
         req.path.unwrap(),
         req.version.unwrap()
@@ -87,16 +94,16 @@ pub fn hello_world() -> Result<http::Response<Vec<u8>>, String> {
 }
 
 //ok: builds and returns a generic, empty 200 OK response
-pub fn ok() -> Result<http::Response<Vec<u8>>, String> {
+pub fn empty_response(status: http::StatusCode) -> Result<http::Response<Vec<u8>>, String> {
     Ok(http::Response::builder()
-        .status(200)
+        .status(status)
         .body(String::from("").as_bytes().to_vec())
         .unwrap())
 }
 
-pub fn ok_json(body: String) -> Result<http::Response<Vec<u8>>, String> {
+pub fn ok_json(status: http::StatusCode, body: String) -> Result<http::Response<Vec<u8>>, String> {
     Ok(http::Response::builder()
-        .status(200)
+        .status(status)
         .header("Content-Type", "application/json")
         .header("Content-Length", body.len())
         .body(body.as_bytes().to_vec())
@@ -104,14 +111,21 @@ pub fn ok_json(body: String) -> Result<http::Response<Vec<u8>>, String> {
 }
 
 //grabs a file and returns it with a proper HTTP response for the file type
-pub fn ok_file(filename: &OsStr) -> Result<http::Response<Vec<u8>>, String> {
+pub fn ok_file(
+    status: http::StatusCode,
+    filename: &OsStr,
+) -> Result<http::Response<Vec<u8>>, String> {
     let path = Path::new(filename);
 
     let file = file_utils::get_file(filename)?;
 
     let metadata = file.metadata().unwrap();
 
-    let file: Vec<u8> = BufReader::new(file).bytes().map(Result::unwrap).collect();
+    let mut reader = BufReader::new(file);
+
+    reader.seek(std::io::SeekFrom::Start(0)).unwrap();
+
+    let file: Vec<u8> = reader.bytes().map(Result::unwrap).collect();
 
     let content_type = match path.extension().and_then(std::ffi::OsStr::to_str) {
         Some("html") => "text/html; charset=utf-8",
@@ -129,7 +143,7 @@ pub fn ok_file(filename: &OsStr) -> Result<http::Response<Vec<u8>>, String> {
     };
 
     Ok(http::Response::builder()
-        .status(200)
+        .status(status)
         .header("Content-Type", content_type)
         .header("Content-length", metadata.len())
         .body(file)
@@ -138,14 +152,19 @@ pub fn ok_file(filename: &OsStr) -> Result<http::Response<Vec<u8>>, String> {
 
 //builds and returns a generic 400 BAD REQUEST http response
 pub fn bad_request() -> Result<http::Response<Vec<u8>>, String> {
-    let mut res = ok_file(OsStr::new("400.html"))?;
-    *res.status_mut() = status::StatusCode::BAD_REQUEST;
-    Ok(res)
+    ok_file(http::StatusCode::BAD_REQUEST, OsStr::new("400.html"))
 }
 
 //builds and returns a 404 NOT FOUND http response, with the 404.html webpage
 pub fn not_found() -> Result<http::Response<Vec<u8>>, String> {
-    let mut res = ok_file(OsStr::new("404.html"))?;
-    *res.status_mut() = status::StatusCode::NOT_FOUND;
-    Ok(res)
+    ok_file(http::StatusCode::NOT_FOUND, OsStr::new("404.html"))
+}
+
+pub fn unauthorized() -> Result<http::Response<Vec<u8>>, String> {
+    empty_response(http::StatusCode::UNAUTHORIZED)
+}
+
+pub fn add_header(res: &mut http::Response<Vec<u8>>, key: &'static str, val: &str) {
+    res.headers_mut()
+        .insert(key, http::HeaderValue::from_str(val).unwrap());
 }

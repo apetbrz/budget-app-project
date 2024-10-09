@@ -5,7 +5,7 @@ use NodeData::*;
 
 use http_bytes::http;
 
-use crate::endpoints::{self, Endpoint};
+use crate::endpoints::{self, Content};
 use crate::http_utils;
 
 //RouteNode: struct for each node in routing tree. holds an id (path/subpath)
@@ -32,7 +32,7 @@ impl RouteNode {
                 Ok holds a reference to a Box pointing to a handler function for the given path
                 Err holds a string, giving an explanation for the error
     */
-    pub fn route(&self, path: &mut path::Iter) -> Result<&Endpoint, String> {
+    pub fn route(&self, path: &mut path::Iter) -> Result<&Content, String> {
         //check for what type of data this node holds:
         match &self.data {
             //if holding subnodes (tree structure),
@@ -172,7 +172,7 @@ impl RouteNode {
 //NodeData: data types that a node can hold: either childnodes or endpoints (functions)
 enum NodeData {
     Branch(HashMap<OsString, Box<RouteNode>>),
-    Leaf(Endpoint),
+    Leaf(Content),
 }
 
 //Router: larger struct for building and holding RouteNode trees
@@ -200,7 +200,7 @@ impl Router {
         &self,
         path_iterator: &mut path::Iter,
         method: &str,
-    ) -> Result<&Endpoint, &Box<dyn Fn() -> http::Response<Vec<u8>>>> {
+    ) -> Result<&Content, &Box<dyn Fn() -> http::Response<Vec<u8>>>> {
         let tree: &RouteNode;
 
         //then, check what HTTP method the request used, and select the proper tree/data for it
@@ -235,18 +235,18 @@ impl Router {
         let mut tree: RouteNode = RouteNode::new(NodeData::Branch(HashMap::new()));
 
         tree.add_and_select_child("/", Branch(HashMap::new()))
-            .add_child("/", Leaf(Endpoint::func(Box::new(endpoints::index::index))))
+            .add_child("/", Leaf(endpoints::new_func_endpoint(Box::new(endpoints::index::index))))
             .add_child(
-                "hello_world",
-                Leaf(Endpoint::func(Box::new(endpoints::index::hello_world))),
+                "home",
+                Leaf(endpoints::new_func_endpoint(Box::new(endpoints::index::home_page))),
             )
             .add_child(
                 "file",
-                Leaf(Endpoint::func(Box::new(endpoints::files::get_file))),
+                Leaf(endpoints::new_func_endpoint(Box::new(endpoints::files::get_file))),
             )
             .add_child(
                 "favicon.ico",
-                Leaf(Endpoint::func(Box::new(endpoints::files::favicon))),
+                Leaf(endpoints::new_func_endpoint(Box::new(endpoints::files::favicon))),
             );
 
         tree
@@ -258,8 +258,8 @@ impl Router {
 
         tree.add_and_select_child("/", Branch(HashMap::new()))
             .add_and_select_child("users", Branch(HashMap::new()))
-            .add_child("register", Leaf(Endpoint::RegisterRequest))
-            .add_child("login", Leaf(Endpoint::LoginRequest));
+            .add_child("register", Leaf(Content::RegisterRequest))
+            .add_child("login", Leaf(Content::LoginRequest));
 
         tree
     }

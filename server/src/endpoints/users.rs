@@ -1,15 +1,14 @@
-use std::{path, sync::mpsc};
+use std::{env, path, sync::mpsc};
 
 use bcrypt;
-use http_bytes::http;
+use http_bytes::http::{self, StatusCode};
 use jsonwebtoken;
 use uuid::{self, Uuid};
 
 use crate::{
-    auth::AuthRequest,
-    db::{self, UserAuthRow, UserCredentials, UserInfo},
-    http_utils,
+    budget::Budget, db::{self, UserAuthRow, UserCredentials, UserInfo}, http_utils
 };
+use crate::threads::auth::AuthRequest;
 
 const HASH_COST: u32 = 10;
 
@@ -48,10 +47,10 @@ pub fn register(data: String) -> Result<http::Response<Vec<u8>>, String> {
         }
     };
 
-    println!("register pw hash: {}", user.password);
-
     //generate a new uuid
     let id = uuid::Uuid::new_v4();
+
+    //TODO: SQL TRANSACTION RATHER THAN TWO SEPARATE EXECUTIONS
 
     //attempt to insert the user into the auth table
     match conn.execute(
@@ -90,19 +89,18 @@ pub fn register(data: String) -> Result<http::Response<Vec<u8>>, String> {
     }
 
     println!("user registered!");
+    let user_info = UserInfo {
+        id: id.to_string(),
+        username: user.username,
+    };
 
-    //TODO: CREATE JSONWEBTOKEN AND SEND, CREATE THREAD TO HANDLE USER
-
-    http_utils::ok()
+    return create_token_response(user_info);
 }
 
+//login() takes user data as a string, parses it,
+//checks the password against the hash in the database,
+//and then (if valid) returns a JSONWEBTOKEN
 pub fn login(data: String) -> Result<http::Response<Vec<u8>>, String> {
-    //grab a connection from the AUTH database's connection pool
-    let auth_db_access = db::USER_DB.read().unwrap();
-    let conn = auth_db_access.connection();
-
-    //drop access to the static db access, just in case
-    drop(auth_db_access);
 
     //attempt to parse the user from the input String
     let user: UserCredentials = match serde_json::from_str(data.trim()) {
@@ -118,43 +116,30 @@ pub fn login(data: String) -> Result<http::Response<Vec<u8>>, String> {
         }
     };
 
-    println!("login pw hash: {}", user.password);
+    let user_row;
 
-    let mut stmt = conn
-        .prepare("SELECT * FROM auth WHERE username = ?")
-        .unwrap();
-
-    let user_row = stmt
-        .query_row(rusqlite::params![user.username], |row| {
-            println!("{:?}", row.get::<&str, Vec<u8>>("uuid"));
-            Ok(UserAuthRow {
-                uuid: row.get::<&str, Uuid>("uuid").unwrap(),
-                username: row.get::<&str, String>("username").unwrap(),
-                password: row.get::<&str, String>("password").unwrap(),
-            })
-        })
-        .unwrap();
+    if let Ok(row) = get_user_auth_row(user.username){
+        user_row = row;
+    }
+    else{
+        return http_utils::bad_request();
+    }
 
     //TODO: handle result
 
+    //verify the input password against the stored hash
     match bcrypt::verify(user.password, user_row.password.as_str()) {
+        //if method successful,
         Ok(valid) => {
+            //check if valid
             if valid {
-                //successful login! return token
+                //if so, great! grab the user's public info,
                 let user_info = UserInfo {
                     id: user_row.uuid.to_string(),
                     username: user_row.username,
                 };
-                let token = jsonwebtoken::encode(
-                    &jsonwebtoken::Header::default(),
-                    &user_info,
-                    &jsonwebtoken::EncodingKey::from_secret("superdupersecret".as_ref()),
-                )
-                .unwrap();
 
-                //TODO: INITIALIZE USER HANDLER THREAD HERE
-
-                return http_utils::ok_json(format!("{}\"token\":\"{}\"{}", "{", token, "}"));
+                return create_token_response(user_info);
             } else {
                 return http_utils::bad_request();
             }
@@ -163,4 +148,63 @@ pub fn login(data: String) -> Result<http::Response<Vec<u8>>, String> {
             return http_utils::bad_request();
         }
     }
+}
+
+//create_token_response() takes in UserInfo, generates a jsonwebtoken, and sends a CREATED response
+pub fn create_token_response(user_info: UserInfo) -> Result<http::Response<Vec<u8>>, String> {
+    let token = jsonwebtoken::encode(
+        &jsonwebtoken::Header::default(),
+        &user_info,
+        &jsonwebtoken::EncodingKey::from_secret(
+            env::var("SECRET")
+                .expect("SECRET should be in .env")
+                .as_ref(),
+        ),
+    )
+    .unwrap();
+
+    let mut res = http_utils::ok_json(
+        StatusCode::CREATED,
+        format!("{}\"token\":\"{}\"{}", "{", token, "}"),
+    )
+    .unwrap();
+
+    http_utils::add_header(&mut res, "Location", "https://budget.nos-web.dev/home");
+
+    Ok(res)
+}
+
+pub fn get_user_auth_row(username: String) -> Result<UserAuthRow, rusqlite::Error>{
+    
+    //grab a connection from the AUTH database's connection pool
+    let conn = db::USER_DB.read().unwrap().connection();
+
+    //prepare the SQL statement to find the user's username
+    let mut stmt = conn
+        .prepare("SELECT * FROM auth WHERE username = ?")
+        .unwrap();
+
+    //get the user data out of the auth table
+    //query the row with the user's username
+    stmt.query_row(rusqlite::params![username], |row| {
+            //once on the row, grab all the data out of it
+            Ok(UserAuthRow {
+                uuid: row.get::<&str, Uuid>("uuid").unwrap(),
+                username: row.get::<&str, String>("username").unwrap(),
+                password: row.get::<&str, String>("password").unwrap(),
+            })
+        })
+}
+
+//TODO: MOVE TO db.rs?!
+pub fn get_user_data_from_uuid(uuid: Uuid) -> Budget {
+    let conn = db::USER_DB.read().unwrap().connection();
+
+    let mut stmt = conn.prepare("SELECT * FROM auth WHERE uuid = ?").unwrap();
+
+    stmt.query_row(rusqlite::params![uuid], |row| {
+        let data: String = row.get("data").unwrap();
+        let bud: Budget = serde_json::from_str(data.as_str()).unwrap();
+        Ok(bud)
+    }).unwrap()
 }
