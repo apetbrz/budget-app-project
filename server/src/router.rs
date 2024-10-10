@@ -5,14 +5,14 @@ use NodeData::*;
 
 use http_bytes::http;
 
-use crate::endpoints::{self, Content};
+use crate::endpoints::{self, Content, new_func_endpoint};
 use crate::http_utils;
 
 //RouteNode: struct for each node in routing tree. holds an id (path/subpath)
 //Done as a routing tree to allow for sub-routes and all that
 //As in,
 //each branch node represents a route with many endpoints under it,
-//leach leaf node represents an endpoint function, which takes the remaining bit of the path as input
+//each leaf node represents an endpoint function, which takes the remaining bit of the path as input
 struct RouteNode {
     data: NodeData,
 }
@@ -154,17 +154,14 @@ impl RouteNode {
         }
     }
 
-    //get_children(): returns the node's own subnode map
-    pub fn get_children(
-        &self,
-        id: &OsString,
-    ) -> Result<&HashMap<OsString, Box<RouteNode>>, String> {
-        match &self.data {
-            Branch(map) => Ok(&map),
-            Leaf(_) => Err(format!(
-                "attempted to get children of an endpoint node at {:?}",
-                id
-            )),
+    //similar to above but without the "adding" part, just grab the child with the given name
+    pub fn select_child(&mut self, id: &str) -> Option<&mut RouteNode> {
+        let os_id = OsString::from(id);
+        match &mut self.data {
+            Branch(map) => {
+                return Some(map.get_mut(&os_id)?)
+            }
+            Leaf(_) => None
         }
     }
 }
@@ -230,23 +227,27 @@ impl Router {
         }
     }
 
+    //TODO: move route creation to server.rs instead of router.rs?
+    // ^ really just for cleaning/organizing code, this "works" its just hard to track and NOT modular
+    // ^ hard-coding routes is bad for reusing server engine!
+
     //build_get_routes(): builds the GET method routes
     fn build_get_routes() -> RouteNode {
         let mut tree: RouteNode = RouteNode::new(NodeData::Branch(HashMap::new()));
 
         tree.add_and_select_child("/", Branch(HashMap::new()))
-            .add_child("/", Leaf(endpoints::new_func_endpoint(Box::new(endpoints::index::index))))
+            .add_child("/", Leaf(new_func_endpoint(Box::new(endpoints::index::index))))
             .add_child(
                 "home",
-                Leaf(endpoints::new_func_endpoint(Box::new(endpoints::index::home_page))),
+                Leaf(new_func_endpoint(Box::new(endpoints::index::home_page))),
             )
             .add_child(
                 "file",
-                Leaf(endpoints::new_func_endpoint(Box::new(endpoints::files::get_file))),
+                Leaf(new_func_endpoint(Box::new(endpoints::files::get_file))),
             )
             .add_child(
                 "favicon.ico",
-                Leaf(endpoints::new_func_endpoint(Box::new(endpoints::files::favicon))),
+                Leaf(new_func_endpoint(Box::new(endpoints::files::favicon))),
             );
 
         tree
@@ -260,6 +261,9 @@ impl Router {
             .add_and_select_child("users", Branch(HashMap::new()))
             .add_child("register", Leaf(Content::RegisterRequest))
             .add_child("login", Leaf(Content::LoginRequest));
+
+        tree.select_child("/").unwrap()
+            .add_child("app", Leaf(Content::UserCommand));
 
         tree
     }

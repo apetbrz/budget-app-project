@@ -1,6 +1,6 @@
 use std::ffi::{OsStr, OsString};
 use std::fs::{self, File, Metadata};
-use std::io::prelude::*;
+use std::io::{prelude::*, BufReader};
 use std::path::PathBuf;
 use std::collections::HashMap;
 use std::sync::{LazyLock, Mutex};
@@ -10,7 +10,13 @@ use http_bytes::http;
 //CLIENT_FILE_PATH: the location of the files that will be sent to client
 const CLIENT_FILE_PATH: &str = "../client/static";
 
-static FILE_CACHE: LazyLock<Mutex<HashMap<OsString, File>>> = LazyLock::new(|| Mutex::new(HashMap::new()));
+//FILE CACHE IMPLEMENTATION:
+//instead of loading and reading a file from the file system every single time,
+//store the bytes of the file into this cache
+//KNOWN LIMITATIONS: 
+// - no differentation of different filepaths, only file name
+// - no checking for file changes, if file in cache is edited, program requires restart
+static FILE_CACHE: LazyLock<Mutex<HashMap<String, Vec<u8>>>> = LazyLock::new(|| Mutex::new(HashMap::new()));
 
 fn sanitize_filename(filename: &OsStr) -> String {
     //i dont want people to dig through my filesystem using "../" to exit folder
@@ -26,47 +32,36 @@ fn sanitize_filename(filename: &OsStr) -> String {
 }
 
 //get_file: loads given file and returns if found, or error string if not
-pub fn get_file(filename: &OsStr) -> Result<File, String> {
+pub fn get_file(filename: &OsStr) -> Result<Vec<u8>, String> {
     if filename.is_empty() {
         return Err("empty filename!".to_owned());
     }
 
+    let filename = sanitize_filename(filename);
+
     //build the file path by sticking it to the end of CLIENT_FILE_PATH
     let mut filepath = PathBuf::from(CLIENT_FILE_PATH);
-    filepath.push(sanitize_filename(filename));
+    filepath.push(filename.clone());
 
     //debug print
     //println!("attempting to get file from: {:?}", filepath);
-    if let Some(file) = FILE_CACHE.lock().unwrap().get(filename){
+    if let Some(file) = FILE_CACHE.lock().unwrap().get(&filename){
         println!("file grabbed from cache!");
-        return Ok(file.try_clone().unwrap());
+        return Ok(file.clone());
     }
     //open the file
     match File::open(filepath.as_path()) {
         //if found, return it
         Ok(file) => {
-            FILE_CACHE.lock().unwrap().insert(OsString::from(filename), file.try_clone().unwrap());
+            let mut reader = BufReader::new(file);
+            reader.seek(std::io::SeekFrom::Start(0)).unwrap();
+            let file: Vec<u8> = reader.bytes().map(Result::unwrap).collect();
+            FILE_CACHE.lock().unwrap().insert(filename, file.clone());
             println!("file cached!");
             Ok(file)
         },
         //otherwise, return an error with the err string
         Err(err) => Err(err.to_string()),
-    }
-}
-
-//open the given file and return it as a String, instead of a file
-pub fn get_file_to_string(filename: &OsStr) -> Result<String, String> {
-    let file = get_file(filename);
-
-    match file {
-        Ok(mut f) => {
-            let mut buf = String::new();
-
-            f.read_to_string(&mut buf);
-
-            Ok(buf)
-        }
-        Err(err) => Err(err),
     }
 }
 

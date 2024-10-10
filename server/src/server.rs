@@ -240,7 +240,7 @@ impl Server {
             //if partial request, just crash. i dont think i even need this
             httparse::Status::Partial => {
                 return http_utils::send_response(
-                    &mut http_utils::bad_request().unwrap(),
+                    http_utils::bad_request().unwrap(),
                     &mut stream,
                 );
             }
@@ -261,7 +261,7 @@ impl Server {
                     //send a response:
                     return http_utils::send_response(
                         //the response being the output of the given function (TODO: HANDLE ERROR?)
-                        &mut func(&mut path_iterator, body).unwrap(),
+                        func(&mut path_iterator, body).unwrap(),
                         &mut stream,
                     );
                 }
@@ -291,7 +291,7 @@ impl Server {
                     },
                     //if the body doesnt exist, dont even bother sending it, jsut send a bad_request back
                     None => http_utils::send_response(
-                        &mut http_utils::bad_request().unwrap(),
+                        http_utils::bad_request().unwrap(),
                         &mut stream,
                     ),
                 },
@@ -316,7 +316,7 @@ impl Server {
                         }
                     },
                     None => http_utils::send_response(
-                        &mut http_utils::bad_request().unwrap(),
+                        http_utils::bad_request().unwrap(),
                         &mut stream,
                     ),
                 },
@@ -339,14 +339,14 @@ impl Server {
                             }
                         },
                         None => http_utils::send_response(
-                            &mut http_utils::bad_request().unwrap(),
+                            http_utils::bad_request().unwrap(),
                             &mut stream,
                         ),
                     }
                 }
             },
             //if no endpoint is found, run the router's not found handler
-            Err(handler) => return http_utils::send_response(&mut handler(), &mut stream),
+            Err(handler) => return http_utils::send_response(handler(), &mut stream),
         }
     }
 }

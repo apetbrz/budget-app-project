@@ -92,7 +92,7 @@ pub fn handle_user_threads(
                     None => {
                         //send an unauthorized response (token is invalid)
                         http_utils::send_response(
-                            &mut http_utils::unauthorized().unwrap(),
+                            http_utils::unauthorized().unwrap(),
                             &mut stream,
                         )
                         .unwrap();
@@ -175,7 +175,7 @@ fn handle_user(uuid: Uuid, receiver: mpsc::Receiver<UserThreadCommand>) {
         //???
         else {
             println!("what? how did i receive a json object that wasnt an Object");
-            http_utils::send_response(&mut http_utils::bad_request().unwrap(), &mut msg.1);
+            http_utils::send_response(http_utils::bad_request().unwrap(), &mut msg.1);
             continue 'thread_loop;
             //TODO: do something
         }
@@ -185,7 +185,7 @@ fn handle_user(uuid: Uuid, receiver: mpsc::Receiver<UserThreadCommand>) {
 
         //if the command isnt there, its invalid!
         if let None = command {
-            http_utils::send_response(&mut http_utils::bad_request().unwrap(), &mut msg.1);
+            http_utils::send_response(http_utils::bad_request().unwrap(), &mut msg.1);
             continue 'thread_loop;
         }
 
@@ -195,14 +195,14 @@ fn handle_user(uuid: Uuid, receiver: mpsc::Receiver<UserThreadCommand>) {
             //match it to get the command to run
             match command.as_str() {
                 _ => {
-                    http_utils::send_response(&mut http_utils::bad_request().unwrap(), &mut msg.1);
+                    http_utils::send_response(http_utils::bad_request().unwrap(), &mut msg.1);
                     //unimplemented
                 }
 
             }//end command match
         }
         else{
-            http_utils::send_response(&mut http_utils::bad_request().unwrap(), &mut msg.1);
+            http_utils::send_response(http_utils::bad_request().unwrap(), &mut msg.1);
         }
 
     }

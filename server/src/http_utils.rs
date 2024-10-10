@@ -1,32 +1,22 @@
 use http_bytes;
-use http_bytes::http::response::Builder;
-use http_bytes::http::{self, status};
-use httparse::{Header, Status};
-use std::fs::File;
-use std::io::Seek;
+use http_bytes::http;
 use std::{
-    ffi::OsStr,
-    io::{BufReader, Read, Write},
-    net::TcpStream,
-    path::Path,
+    ffi::OsStr, io::Write, net::TcpStream, path::Path
 };
 
 use crate::file_utils;
 
 const REQ_BODY_TRUNCATE_LEN: usize = 128;
 
-const CONTENT_TEXT: &str = "text/plain";
-const CONTENT_JSON: &str = "application/json";
-
 pub fn send_response(
-    response: &mut http::Response<Vec<u8>>,
+    mut response: http::Response<Vec<u8>>,
     stream: &mut TcpStream,
 ) -> Result<(), std::io::Error> {
     //print the response
-    println!("\nresponse:\n{}", stringify_response(response));
+    println!("\nresponse:\n{}", stringify_response(&response));
 
     //write the response to TCP connection stream, as bytes
-    stream.write_all(&*serialize_response(response)).unwrap();
+    stream.write_all(&*serialize_response(&mut response)).unwrap();
 
     //"flush" the stream to send it out
     stream.flush()
@@ -93,7 +83,7 @@ pub fn hello_world() -> Result<http::Response<Vec<u8>>, String> {
         .unwrap())
 }
 
-//ok: builds and returns a generic, empty 200 OK response
+//ok: builds and returns a generic, empty response
 pub fn empty_response(status: http::StatusCode) -> Result<http::Response<Vec<u8>>, String> {
     Ok(http::Response::builder()
         .status(status)
@@ -119,14 +109,6 @@ pub fn ok_file(
 
     let file = file_utils::get_file(filename)?;
 
-    let metadata = file.metadata().unwrap();
-
-    let mut reader = BufReader::new(file);
-
-    reader.seek(std::io::SeekFrom::Start(0)).unwrap();
-
-    let file: Vec<u8> = reader.bytes().map(Result::unwrap).collect();
-
     let content_type = match path.extension().and_then(std::ffi::OsStr::to_str) {
         Some("html") => "text/html; charset=utf-8",
         Some("css") => "text/css",
@@ -145,7 +127,7 @@ pub fn ok_file(
     Ok(http::Response::builder()
         .status(status)
         .header("Content-Type", content_type)
-        .header("Content-length", metadata.len())
+        .header("Content-length", file.len())
         .body(file)
         .unwrap())
 }

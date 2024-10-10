@@ -1,0 +1,16 @@
+.main-container {
+    display: grid;
+    grid-template-rows: 25% 70% 5%;
+}
+
+.header {
+    color: red;
+}
+
+.body {
+    color: green;
+}
+
+.footer {
+    color: blue;
+}

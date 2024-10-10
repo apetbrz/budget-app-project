@@ -11,7 +11,8 @@ use super::user_threads::UserManagerThreadMessage;
 //packet type determines what route to take
 //packet always contains the POST request body as a string
 //packet always contains the TcpStream output, passing ownership to thread
-//TODO: INCLUDE TIMER, FOR LATENCY METRICS, AND SEND RESULTING LATENCY BACK TO HOST
+//TODO: INCLUDE TIMER, FOR LATENCY METRICS, AND SEND RESULTING LATENCY BACK TO HOST(??)
+// - may have to find a way to consolidate latency data to a centralized 'metrics' thread/handler??
 pub enum AuthRequest {
     Register { jsondata: String, stream: TcpStream },
     Login { jsondata: String, stream: TcpStream },
@@ -31,6 +32,7 @@ pub fn handle_auth_requests(
     //iterate through host->thread reception channel, yielding if empty
     for req in receiver.iter() {
 
+        //auth thread timer
         let now = Instant::now();
 
         //once hearing something, check its type
@@ -40,12 +42,16 @@ pub fn handle_auth_requests(
                 jsondata,
                 mut stream,
             } => {
+                //yippee!
                 println!(
                     "handling registration in background thread!!!!!\n{}",
                     jsondata
                 );
+
+                //TODO: split this up some, check for success/failure here instead of endpoint
+                //send Creation message to user thread manager
                 http_utils::send_response(
-                    &mut endpoints::users::register(jsondata).unwrap(),
+                    endpoints::users::register(jsondata).unwrap(),
                     &mut stream,
                 )
                 .unwrap();
@@ -57,14 +63,19 @@ pub fn handle_auth_requests(
                 jsondata,
                 mut stream,
             } => {
+                //yippee!!
                 println!("handling login in background thread!!!!!\n{}", jsondata);
+                
+                //TODO: split this up like above!!!
                 http_utils::send_response(
-                    &mut endpoints::users::login(jsondata).unwrap(),
+                    endpoints::users::login(jsondata).unwrap(),
                     &mut stream,
                 )
                 .unwrap();
             }
         }
+
+        //time output
         println!("auth thread took: {:?}", now.elapsed());
     }
 }
