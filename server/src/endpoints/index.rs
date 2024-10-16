@@ -26,3 +26,9 @@ pub fn bad_request() -> http::Response<Vec<u8>> {
     http_utils::bad_request().unwrap()
 }
 
+pub fn secret(
+    _ext: &mut path::Iter,
+    _data: Option<String>
+) -> Result<http::Response<Vec<u8>>, String> {
+    http_utils::ok_json(http::StatusCode::UNAVAILABLE_FOR_LEGAL_REASONS, String::from("{\"STATUS\":\"451 - UNAVAILABLE FOR LEGAL REASONS\",\"MESSAGE\":\"drugs are bad!\"}"))
+}

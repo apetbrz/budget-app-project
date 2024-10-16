@@ -18,14 +18,7 @@ let register = async() => {
         body: body
     });
 
-    let response_body = await response.json();
-
-    if(response_body.token) {
-        sessionStorage.setItem("token", response_body.token);
-        window.location.replace(response.headers.get("Location"));
-    }
-
-    console.table(response);
+    await handleLogin(response);
 }
 
 let login = async() => {
@@ -41,13 +34,18 @@ let login = async() => {
             "Content-Length": body.length
         },
         body: body
-    }).then((res) => res.json());
+    });
+
+    await handleLogin(response);
+}
+
+let handleLogin = async (response) => {
+
+    let response_body = await response.json();
 
     if(response_body.token) {
         sessionStorage.setItem("token", response_body.token);
-        window.location.replace(response.headers.get("Location"));
-
+        document.location.href = response.headers.get("Location");
     }
 
-    console.table(response);
 }

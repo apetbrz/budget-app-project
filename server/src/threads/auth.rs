@@ -3,7 +3,12 @@ use std::{net::TcpStream, time::Duration};
 use std::sync::mpsc;
 use std::thread;
 
+use crate::db::UserInfo;
+use crate::endpoints::users::login;
 use crate::{endpoints, http_utils, threads::user_threads};
+use http_bytes::http;
+use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
 use super::user_threads::UserManagerThreadMessage;
 
@@ -15,7 +20,28 @@ use super::user_threads::UserManagerThreadMessage;
 // - may have to find a way to consolidate latency data to a centralized 'metrics' thread/handler??
 pub enum AuthRequest {
     Register { jsondata: String, stream: TcpStream },
-    Login { jsondata: String, stream: TcpStream },
+    Login { jsondata: String, stream: TcpStream }
+}
+
+pub enum AuthError {
+    BadRequest,
+    BadCredentials
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct UserToken {
+    pub id: Uuid,
+    pub username: String,
+    pub exp: usize
+}
+impl UserToken{
+    pub fn new(user_info: UserInfo, exp: usize) -> UserToken {
+        UserToken{
+            id: user_info.id,
+            username: user_info.username,
+            exp: exp
+        }
+    }
 }
 
 //handle_auth_requests(): waits for and handles messages from host thread
@@ -28,6 +54,8 @@ pub fn handle_auth_requests(
     
     //maybe redundant, but initialize communication channel constants
     let (sender, receiver) = (thread_sender, thread_receiver);
+    
+    println!("auth thread spawned: {:?}", thread::current().id());
 
     //iterate through host->thread reception channel, yielding if empty
     for req in receiver.iter() {
@@ -50,11 +78,29 @@ pub fn handle_auth_requests(
 
                 //TODO: split this up some, check for success/failure here instead of endpoint
                 //send Creation message to user thread manager
-                http_utils::send_response(
-                    endpoints::users::register(jsondata).unwrap(),
-                    &mut stream,
-                )
-                .unwrap();
+
+                let register_result = endpoints::users::register(jsondata);
+
+                http_utils::send_response(match register_result {
+                    Ok(token) => {
+                        sender_to_user_threads.send(UserManagerThreadMessage::Creation { token: token.clone() });
+                        let token = format!("{{\"token\":\"{}\"}}", token);
+                        let mut res = http_utils::ok_json(http::StatusCode::CREATED, token).unwrap();
+                        http_utils::add_header(&mut res, "Location", "/home");
+                        res
+
+                    },
+                    Err(why) => {
+                        match why {
+                            AuthError::BadRequest => {
+                                http_utils::bad_request().unwrap()
+                            },
+                            AuthError::BadCredentials => {
+                                http_utils::bad_request().unwrap()
+                            }
+                        }
+                    }
+                }, &mut stream);
             }
 
             //login: authenticate user in auth database, send back a token if valid
@@ -66,12 +112,28 @@ pub fn handle_auth_requests(
                 //yippee!!
                 println!("handling login in background thread!!!!!\n{}", jsondata);
                 
-                //TODO: split this up like above!!!
-                http_utils::send_response(
-                    endpoints::users::login(jsondata).unwrap(),
-                    &mut stream,
-                )
-                .unwrap();
+                let login_result = endpoints::users::login(jsondata);
+
+                http_utils::send_response(match login_result {
+                    Ok(token) => {
+                        sender_to_user_threads.send(UserManagerThreadMessage::Creation { token: token.clone() });
+                        let token = format!("{{\"token\":\"{}\"}}", token);
+                        let mut res = http_utils::ok_json(http::StatusCode::CREATED, token).unwrap();
+                        http_utils::add_header(&mut res, "Location", "/home");
+                        res
+
+                    },
+                    Err(why) => {
+                        match why {
+                            AuthError::BadRequest => {
+                                http_utils::bad_request().unwrap()
+                            },
+                            AuthError::BadCredentials => {
+                                http_utils::bad_request().unwrap()
+                            }
+                        }
+                    }
+                }, &mut stream);
             }
         }
 

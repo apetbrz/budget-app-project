@@ -6,6 +6,7 @@ use std::{
 use r2d2_sqlite;
 use rusqlite;
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
 //these two static variables ARE THE DATABASES
 //im statically initializing a RwLock-ed reference
@@ -60,7 +61,7 @@ impl UserCredentials {}
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct UserInfo {
-    pub id: String,
+    pub id: Uuid,
     pub username: String,
 }
 impl UserInfo {}

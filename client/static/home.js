@@ -1,34 +1,16 @@
-document.onload(() => {
+window.onload = async () => {
     if(!sessionStorage.getItem("token")){
         window.location.replace("https://budget.nos-web.dev/");
     }
-})
-/*
-let response = await fetch("/user/{some user token lol}", {
-    method: "get",
-}).then((res) => res.json());
+    let user = await fetch("/user", {
+        method: "get",
+        headers: {
+            "Authorization": sessionStorage.getItem("token")
+        }
+    }).then((res) => res.json());
 
-let user =  {
-    username: "something",
-    current_balance: 0,
-    expected_income: 0,
-    expected_expenses: { rent: 100 },
-    current_expenses: { rent: 0 },
-    savings: 0,
+    console.log(user);
+    let text = document.createElement("h");
+    text.textContent = JSON.stringify(user);
+    document.getElementById("body").append(text)
 }
-
-let body = {
-    command: "add_expense",
-    name: "rent",
-    value: 100
-}
-
-let response = await fetch("/app", {
-    method: "post",
-    headers: {
-        "Content-Type": "application/json; charset=UTF-8",
-        "Content-Length": body.length
-    },
-    body: body
-})
-*/

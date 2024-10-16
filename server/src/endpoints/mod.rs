@@ -13,6 +13,8 @@ pub enum Content {
     ),
     LoginRequest,
     RegisterRequest,
+    LogoutRequest,
+    UserDataRequest,
     UserCommand
 }
 pub fn new_func_endpoint(

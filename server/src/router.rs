@@ -248,6 +248,17 @@ impl Router {
             .add_child(
                 "favicon.ico",
                 Leaf(new_func_endpoint(Box::new(endpoints::files::favicon))),
+            )
+            .add_child(
+                "logout",
+                Leaf(Content::LogoutRequest)
+            )
+            .add_child(
+                "user",
+                Leaf(Content::UserDataRequest))
+            .add_child(
+                "drugs",
+                Leaf(new_func_endpoint(Box::new(endpoints::index::secret)))
             );
 
         tree

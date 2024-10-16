@@ -53,3 +53,7 @@ I've spent some time separately making the budget app. I made it separate with a
 So far I've gotten to the point where logging in generates a token and stores it in the client's session storage, then redirects to /home. My minimal testing frontend is starting to not be enough anymore, and I'm going to need to get the front end layout designed up and built, at least to the point of functionality. I'm still working on hooking up user tokens to individual threads, they still don't spawn upon token creation yet.
 
 I may need to look into performance soon. Maybe I'm being wasteful with database operations, I'm not sure yet. What I do know is that one register request took 600ms on the authentication thread, which can definitely be noticeable. Fortunately, most other HTTP requests so far fit comfortably under 1ms, with the worst being no greater than 2ms. I think that's great for now.
+
+### 10/16/24
+
+I've got the threads hooked up to account login/registration!!! It's so nice to see it work, where when you log in it spawns a new thread that loads your budget data from the database into memory, and can send it to you when needed! This is really coming together!

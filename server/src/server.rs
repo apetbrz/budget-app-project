@@ -9,9 +9,11 @@ use std::{env, path, thread};
 //external crates:
 //used for parsing HTTP requests into objects
 use httparse::{self, Header};
+//http_bytes replacement for http, as http normally doesnt support raw bytes ??
+use http_bytes::http::{self, StatusCode};
 
 use crate::threads::auth::{self, AuthRequest};
-use crate::db;
+use crate::{db, endpoints};
 use crate::endpoints::Content;
 use crate::http_utils;
 use crate::router::Router;
@@ -70,7 +72,7 @@ impl Server {
 
     //listen(): loops forever through incoming TCP streams and handles them
     pub fn listen(&mut self) -> Result<(), String> {
-        println!("listening on {:?}", self.listener.local_addr().unwrap());
+        println!("listening on {:?} from thread {:?}", self.listener.local_addr().unwrap(), thread::current().id());
 
         let (host_sender, thread_receiver) = mpsc::channel::<auth::AuthRequest>();
         let (thread_sender, host_receiver) = mpsc::channel::<auth::AuthRequest>();
@@ -94,7 +96,7 @@ impl Server {
         });
         
         thread::spawn(move || {
-            generate_timeout_checks(timer_thread_sender);
+            generate_timeout_checks(timer_thread_sender, 10);
         });
 
 
@@ -175,6 +177,10 @@ impl Server {
             //otherwise, assume 0 request body
             None => 0,
         };
+
+        if body_size > MAX_REQUEST_BYTES {
+            return http_utils::send_response(http_utils::empty_response(http::StatusCode::PAYLOAD_TOO_LARGE).unwrap(), &mut stream)
+        }
 
         //the body will be stored in a vec of the exact required size
         let mut body = vec![0; body_size];
@@ -320,11 +326,35 @@ impl Server {
                         &mut stream,
                     ),
                 },
+                //if it's a logout endpoint, grab the user's token and tell the user thread to handle the logout
+                //pass the token and TCP stream
+                Content::LogoutRequest => {
+                    //get token from Auth header
+                    let token = http_utils::find_header_in_request(&req, "Authorization");
+
+                    //if it exists,
+                    if let Some(token) = token {
+                        //tell user thread to handle logout
+                        self.send_message_to_user_thread(UserManagerThreadMessage::Shutdown { token: token, stream: stream });
+                        Ok(())
+                    }
+                    //if not,bad request.
+                    else{
+                        http_utils::send_response(http_utils::bad_request().unwrap(), &mut stream)
+                    }
+                    //log out
+                },
+                //if it's a user command endpoint, grab the user's token and tell the user thread to handle the command
+                //pass the token, request bodu (json command), and TCP stream
                 Content::UserCommand => {
+                    
+                    //get the token from the 'authorization' header (if not found, send a bad_request res)
+                    let token = match http_utils::find_header_in_request(&req, "authorization"){
+                        Some(token) => token,
+                        None => return http_utils::send_response(http_utils::bad_request().unwrap(), &mut stream)
+                    };
 
-                    let mut token = String::new();
-                    req_headers.iter().find(|header| header.name.eq_ignore_ascii_case("authorization")).unwrap().value.clone().read_to_string(&mut token);
-
+                    //if the body exists, send data to user thread
                     match body {
                         Some(body) => {
                             match self.send_message_to_user_thread(UserManagerThreadMessage::UserCommand { token: token, jsondata: body, stream: stream }){
@@ -332,17 +362,29 @@ impl Server {
                                     //TODO: Something?
                                     Ok(())
                                 },
+                                //if send fails, the entire user manager thread is gone! program cannot continue
                                 Err(send_error) => {
                                     println!("USER HANDLER THREAD LOST!!! - {:?}", send_error);
                                     panic!("user thread failure!")
                                 }
                             }
                         },
+                        //if no body, no command! bad request.
                         None => http_utils::send_response(
                             http_utils::bad_request().unwrap(),
                             &mut stream,
                         ),
                     }
+                }
+                
+                Content::UserDataRequest => {
+
+                    let token = match http_utils::find_header_in_request(&req, "authorization") {
+                        Some(token) => token,
+                        None => return http_utils::send_response(http_utils::bad_request().unwrap(), &mut stream)
+                    };
+                    self.send_message_to_user_thread(UserManagerThreadMessage::UserDataRequest { token: token, stream: stream });
+                    Ok(())
                 }
             },
             //if no endpoint is found, run the router's not found handler
@@ -351,10 +393,12 @@ impl Server {
     }
 }
 
-
-fn generate_timeout_checks(channel: mpsc::Sender<user_threads::UserManagerThreadMessage>) {
+//generate_timeout_checks(): creates a looping timer, that sends a TimeoutCheck message
+//to the user manager thread every X seconds
+fn generate_timeout_checks(channel: mpsc::Sender<user_threads::UserManagerThreadMessage>, interval_s: u64) {
+    println!("timeout thread spawned: {:?}", thread::current().id());
     loop {
-        thread::sleep(Duration::from_secs(10));
+        thread::sleep(Duration::from_secs(interval_s));
         channel.send(user_threads::UserManagerThreadMessage::TimeoutCheck);
     }
 }

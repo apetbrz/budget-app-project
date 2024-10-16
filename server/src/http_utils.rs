@@ -6,14 +6,14 @@ use std::{
 
 use crate::file_utils;
 
-const REQ_BODY_TRUNCATE_LEN: usize = 128;
+const REQ_BODY_TRUNCATE_LEN: usize = 16;
 
 pub fn send_response(
     mut response: http::Response<Vec<u8>>,
     stream: &mut TcpStream,
 ) -> Result<(), std::io::Error> {
     //print the response
-    println!("\nresponse:\n{}", stringify_response(&response));
+    println!("\nresponse: {}", stringify_response(&response));
 
     //write the response to TCP connection stream, as bytes
     stream.write_all(&*serialize_response(&mut response)).unwrap();
@@ -91,6 +91,7 @@ pub fn empty_response(status: http::StatusCode) -> Result<http::Response<Vec<u8>
         .unwrap())
 }
 
+//ok_json: builds and returns a response with a json object string as the body (does not stringify)
 pub fn ok_json(status: http::StatusCode, body: String) -> Result<http::Response<Vec<u8>>, String> {
     Ok(http::Response::builder()
         .status(status)
@@ -149,4 +150,16 @@ pub fn unauthorized() -> Result<http::Response<Vec<u8>>, String> {
 pub fn add_header(res: &mut http::Response<Vec<u8>>, key: &'static str, val: &str) {
     res.headers_mut()
         .insert(key, http::HeaderValue::from_str(val).unwrap());
+}
+
+//find_header_in_request(): takes a reference to a request and a target key, and returns the value in the headers (if exists)
+pub fn find_header_in_request(req: &httparse::Request, key: &str) -> Option<String> {
+    let headers = &req.headers;
+
+    let target = headers.iter().filter(|header| header.name.eq_ignore_ascii_case(key)).next();
+
+    match target{
+        Some(header) => Some(String::from_utf8_lossy(header.value).to_string()),
+        None => None
+    }
 }
