@@ -70,18 +70,13 @@ pub fn handle_auth_requests(
                 jsondata,
                 mut stream,
             } => {
-                //yippee!
-                println!(
-                    "handling registration in background thread!!!!!\n{}",
-                    jsondata
-                );
 
                 //TODO: split this up some, check for success/failure here instead of endpoint
-                //send Creation message to user thread manager
 
                 let register_result = endpoints::users::register(jsondata);
 
-                http_utils::send_response(match register_result {
+                //why the fuck did i put a match in the function???
+                let _ = http_utils::send_response(match register_result {
                     Ok(token) => {
                         sender_to_user_threads.send(UserManagerThreadMessage::Creation { token: token.clone() });
                         let token = format!("{{\"token\":\"{}\"}}", token);
@@ -104,17 +99,13 @@ pub fn handle_auth_requests(
             }
 
             //login: authenticate user in auth database, send back a token if valid
-            //TODO: create a personal user thread to handle requests with token
             AuthRequest::Login {
                 jsondata,
                 mut stream,
             } => {
-                //yippee!!
-                println!("handling login in background thread!!!!!\n{}", jsondata);
-                
                 let login_result = endpoints::users::login(jsondata);
 
-                http_utils::send_response(match login_result {
+                let _ = http_utils::send_response(match login_result {
                     Ok(token) => {
                         sender_to_user_threads.send(UserManagerThreadMessage::Creation { token: token.clone() });
                         let token = format!("{{\"token\":\"{}\"}}", token);
@@ -138,6 +129,6 @@ pub fn handle_auth_requests(
         }
 
         //time output
-        println!("auth thread took: {:?}", now.elapsed());
+        println!("\tauth thread took: {:?}", now.elapsed());
     }
 }

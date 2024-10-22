@@ -1,16 +1,39 @@
+html, body{
+    height: 100%;
+}
+
+body {
+    display: grid;
+    justify-items: center;
+}
 .main-container {
     display: grid;
-    grid-template-rows: 25% 70% 5%;
+    grid-template-rows: 2fr 8fr 1fr;
+    height: 92%;
+    max-width: 50vw;
+    place-items: stretch;
 }
 
 .header {
-    color: red;
+    background-color: red;
+    grid-row: 1;
+    height: 100%;
+    padding: 1ch;
+    margin: 1ch;
 }
 
 .body {
-    color: green;
+    background-color: green;
+    grid-row: 2;
+    height: 100%;
+    padding: 1ch;
+    margin: 1ch;
 }
 
 .footer {
-    color: blue;
+    background-color: blue;
+    grid-row: 3;
+    height: 100%;
+    padding: 1ch;
+    margin: 1ch;
 }

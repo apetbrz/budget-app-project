@@ -57,6 +57,9 @@ pub fn handle_user_threads(
 
     //listen to host
     for msg in thread_receiver_from_main.iter() {
+        
+        let now = Instant::now();
+
         //check message type
         match msg {
             //Creation: create a new thread, linking a JSONWEBTOKEN to a UUID
@@ -112,7 +115,7 @@ pub fn handle_user_threads(
                 }
             }
 
-            //
+            
             UserManagerThreadMessage::Shutdown { token, mut stream } => {
                 match thread_map.get(&token) {
                     Some(sender) => {
@@ -124,10 +127,11 @@ pub fn handle_user_threads(
                 }
             }
             UserManagerThreadMessage::TimeoutCheck => {
+                //TODO: wait for response (of "all good!" or "im dead!") instead of looping twice!!!
                 for (k, v) in thread_map.iter() {
                     v.send(UserThreadCommand::TimeoutCheck);
                 }
-                thread::sleep(Duration::from_millis(100));
+                thread::sleep(Duration::from_millis(10));
                 thread_map.retain(|k, v| {
                     if let Err(_) = v.send(UserThreadCommand::Check) {
                         false
@@ -137,6 +141,8 @@ pub fn handle_user_threads(
                 });
             }
         }
+
+        println!("\tmaster user thread took: {:?}", now.elapsed())
     }
 }
 
@@ -154,6 +160,9 @@ fn handle_user(token: String, receiver: mpsc::Receiver<UserThreadCommand>) {
 
     //loop through messages from manager
     'thread_loop: for mut msg in receiver.iter() {
+
+        let now = Instant::now();
+
         if let UserThreadCommand::Check = msg {
             continue 'thread_loop;
         }
@@ -223,5 +232,8 @@ fn handle_user(token: String, receiver: mpsc::Receiver<UserThreadCommand>) {
         } else {
             http_utils::send_response(http_utils::bad_request().unwrap(), &mut msg.1);
         }
+
+        println!("\tuser thread took: {:?} --- user: {:?}", now.elapsed(), id);
+
     }
 }

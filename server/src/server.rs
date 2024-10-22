@@ -96,7 +96,7 @@ impl Server {
         });
         
         thread::spawn(move || {
-            generate_timeout_checks(timer_thread_sender, 10);
+            generate_timeout_checks(timer_thread_sender, 30);
         });
 
 
@@ -111,7 +111,7 @@ impl Server {
                 Ok(stream) => {
                     //count req, print
                     req_count += 1;
-                    println!("\n\nrequest! #{}\n", req_count);
+                    println!("\n\n\trequest! #{}", req_count);
 
                     //handle the request, get a response
                     self.handle_connection(stream).unwrap();
@@ -121,7 +121,7 @@ impl Server {
                 }
             }
 
-            println!("\trequest took: {:?}", now.elapsed());
+            println!("\tmain thread took: {:?}", now.elapsed());
         }
 
         Ok(())
@@ -399,6 +399,7 @@ fn generate_timeout_checks(channel: mpsc::Sender<user_threads::UserManagerThread
     println!("timeout thread spawned: {:?}", thread::current().id());
     loop {
         thread::sleep(Duration::from_secs(interval_s));
+        println!("timeout check!");
         channel.send(user_threads::UserManagerThreadMessage::TimeoutCheck);
     }
 }

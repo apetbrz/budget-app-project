@@ -57,3 +57,7 @@ I may need to look into performance soon. Maybe I'm being wasteful with database
 ### 10/16/24
 
 I've got the threads hooked up to account login/registration!!! It's so nice to see it work, where when you log in it spawns a new thread that loads your budget data from the database into memory, and can send it to you when needed! This is really coming together!
+
+### 10/22/24
+
+I put some timers all over the place, to log how long each thread takes. I've still got to figure out how to time the full incoming->outgoing message latency, but that'll come soon. I need to finish hooking up user commands to use budgeting functions on the loaded user data. After that, I think I can call the project "functional" lol.

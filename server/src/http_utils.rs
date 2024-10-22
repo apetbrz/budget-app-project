@@ -6,7 +6,7 @@ use std::{
 
 use crate::file_utils;
 
-const REQ_BODY_TRUNCATE_LEN: usize = 16;
+const REQ_BODY_TRUNCATE_LEN: usize = 8;
 
 pub fn send_response(
     mut response: http::Response<Vec<u8>>,

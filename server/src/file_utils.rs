@@ -1,3 +1,4 @@
+use std::env;
 use std::ffi::{OsStr, OsString};
 use std::fs::{self, File, Metadata};
 use std::io::{prelude::*, BufReader};
@@ -46,7 +47,6 @@ pub fn get_file(filename: &OsStr) -> Result<Vec<u8>, String> {
     //debug print
     //println!("attempting to get file from: {:?}", filepath);
     if let Some(file) = FILE_CACHE.lock().unwrap().get(&filename){
-        println!("file grabbed from cache!");
         return Ok(file.clone());
     }
     //open the file
@@ -56,8 +56,9 @@ pub fn get_file(filename: &OsStr) -> Result<Vec<u8>, String> {
             let mut reader = BufReader::new(file);
             reader.seek(std::io::SeekFrom::Start(0)).unwrap();
             let file: Vec<u8> = reader.bytes().map(Result::unwrap).collect();
-            FILE_CACHE.lock().unwrap().insert(filename, file.clone());
-            println!("file cached!");
+            if env::var("DO_CACHING").unwrap_or_default() == "true" {
+                FILE_CACHE.lock().unwrap().insert(filename, file.clone());
+            }
             Ok(file)
         },
         //otherwise, return an error with the err string

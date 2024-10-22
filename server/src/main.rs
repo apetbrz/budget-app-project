@@ -26,7 +26,6 @@ mod budget;
 fn main() -> Result<(), String> {
     //get .env variables
     dotenv().expect("file should load: /server/.env");
-    env::set_var("RUST_BACKTRACE", "full");
 
     //default host address: localhost:3000
     let host_address = format!(
