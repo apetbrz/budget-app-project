@@ -6,14 +6,14 @@ use std::{
 
 use crate::file_utils;
 
-const REQ_BODY_TRUNCATE_LEN: usize = 8;
+const REQ_BODY_TRUNCATE_LEN: usize = 16;
 
 pub fn send_response(
     mut response: http::Response<Vec<u8>>,
     stream: &mut TcpStream,
 ) -> Result<(), std::io::Error> {
     //print the response
-    println!("\nresponse: {}", stringify_response(&response));
+    println!("\nresponse: {}\n", stringify_response(&response));
 
     //write the response to TCP connection stream, as bytes
     stream.write_all(&*serialize_response(&mut response)).unwrap();

@@ -10,14 +10,18 @@ This is a personal budgeting web app to allow users to track their earnings, exp
 
 ### Setup
 
-TODO
+1. Install Rust, from `https://rustup.rs/`
+
+2. Run once by running `cargo run` within the `server/` folder, to generate preset environment variables. Restart.
+
+3. Open the `server/.env` file and add a `SECRET` value.
 
 ### Running
 
-TODO
+ - Run with `cargo run` in the `server/` folder.
 
 ---
 
 ### Notes
 
-Going for simple enough CRUD functionality, before adding functionality. I will add comments to everything soon. May need to restructure to further separate client/server code.
+Custom multithreaded implementation, avoiding async/await, to familiarize with concurrent threading code. Highly in-development.

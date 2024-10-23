@@ -188,7 +188,7 @@ impl Server {
         //read into the body buffer
         reader.read_exact(&mut body).unwrap();
 
-        println!("{}", String::from_utf8_lossy(&body));
+        //println!("{}", String::from_utf8_lossy(&body));
 
         //convert headers into bytes
         let headers = headers.as_bytes();
@@ -241,7 +241,9 @@ impl Server {
                 if (body.clone().unwrap()).is_empty() {
                     body = None;
                 }
-                println!("body: {:?}", &body);
+                else{
+                    println!("body: {:?}", &body);
+                }
             }
             //if partial request, just crash. i dont think i even need this
             httparse::Status::Partial => {

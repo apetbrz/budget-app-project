@@ -58,10 +58,12 @@ pub fn register(data: String) -> Result<String, AuthError> {
         rusqlite::params![id, user.username, user.password],
     ) {
         //if successful, great!
-        Ok(_) => println!("user {} auth registered", user.username),
+        Ok(_) => {
+            //println!("user {} auth registered", user.username)
+        },
         //if not, who knows! some SQL error, print it out and send back a 400
         Err(why) => {
-            println!("holy hell, the same UUID generated??\n{}", why.to_string());
+            println!("holy hell, register failed?!\n{}", why.to_string());
             return Err(AuthError::BadRequest);
         }
     }
@@ -78,7 +80,9 @@ pub fn register(data: String) -> Result<String, AuthError> {
         "INSERT INTO users(uuid, jsondata, jsonhistory) VALUES (?, ?, ?)",
         rusqlite::params![id, serde_json::to_string(&new_budget).unwrap(), "{}"],
     ) {
-        Ok(_) => println!("user {} data registered", user.username),
+        Ok(_) => {
+            //println!("user {} data registered", user.username)
+        },
         Err(why) => {
             println!(
                 "failed user data table registration for {}\n{}",
@@ -118,6 +122,7 @@ pub fn login(data: String) -> Result<String, AuthError> {
         }
     };
 
+    //graab the user's Authentication data from the auth table
     let user_row;
 
     if let Ok(row) = get_user_auth_row(user.username){
@@ -126,8 +131,6 @@ pub fn login(data: String) -> Result<String, AuthError> {
     else{
         return Err(AuthError::BadCredentials);
     }
-
-    //TODO: handle result
 
     //verify the input password against the stored hash
     match bcrypt::verify(user.password, user_row.password.as_str()) {
@@ -140,12 +143,15 @@ pub fn login(data: String) -> Result<String, AuthError> {
                     id: user_row.uuid,
                     username: user_row.username,
                 };
-
+                //and return a generated token!
                 return Ok(create_token(user_info));
-            } else {
+            } 
+            //if not valid, return a bad_credentials
+            else {
                 return Err(AuthError::BadCredentials);
             }
         }
+        //if error in verification, send bad_request
         Err(why) => {
             return Err(AuthError::BadRequest);
         }
@@ -154,8 +160,12 @@ pub fn login(data: String) -> Result<String, AuthError> {
 
 //create_token_response() takes in UserInfo, generates a jsonwebtoken, and sends a CREATED response
 pub fn create_token(user_info: UserInfo) -> String {
+    //token expires in an hour
     let exp = chrono::Utc::now() + chrono::Duration::minutes(60);
+    //create token data struct
     let token_data = auth::UserToken::new(user_info, exp.timestamp() as usize);
+
+    //encode the data and return it
     jsonwebtoken::encode(
         &jsonwebtoken::Header::default(),
         &token_data,
@@ -169,6 +179,7 @@ pub fn create_token(user_info: UserInfo) -> String {
 }
 
 //TODO: move to db.rs?!
+//get_user_auth_row(): takes in a user's username and grabs their Authentication data from the db
 pub fn get_user_auth_row(username: String) -> Result<UserAuthRow, rusqlite::Error>{
     
     //grab a connection from the AUTH database's connection pool
@@ -192,6 +203,7 @@ pub fn get_user_auth_row(username: String) -> Result<UserAuthRow, rusqlite::Erro
 }
 
 //TODO: MOVE TO db.rs?!
+//get_user_data_from_uuid(): takes in a user's unique id, and returns their Budget data from the db
 pub fn get_user_data_from_uuid(uuid: Uuid) -> Budget {
     let conn = db::USER_DB.read().unwrap().connection();
 
@@ -204,28 +216,26 @@ pub fn get_user_data_from_uuid(uuid: Uuid) -> Budget {
     }).unwrap()
 }
 
+//get_uuid_from_token(): takes in a JSONWEBTOKEN and returns the UUID encoded in it
+//if the token is valid. returns failure if invalid
 pub fn get_uuid_from_token(token: &String) -> Result<Uuid, String> {
-    let mut validation = jsonwebtoken::Validation::new(jsonwebtoken::Algorithm::HS256);
 
+    let validation = jsonwebtoken::Validation::new(jsonwebtoken::Algorithm::HS256);
+    let secret: String = env::var("SECRET").expect("SECRET should be in .env");
+
+    //attempt to decode token
     let user_info = jsonwebtoken::decode::<auth::UserToken>(
         token, 
-        &jsonwebtoken::DecodingKey::from_secret(
-            env::var("SECRET").expect("SECRET should be in .env").as_ref()
-        ),
-        &jsonwebtoken::Validation::new(jsonwebtoken::Algorithm::HS256)
+        &jsonwebtoken::DecodingKey::from_secret(secret.as_bytes()),
+        &validation
         );
     
+    //return data if it exists, or error if not
     match user_info{
         Ok(data) => Ok(data.claims.id),
         Err(why) => {
-            println!("FAILED TO DECODE TOKEN!?: {:?}", why);
-            Err(String::from("failed to get uuid"))
+            println!("invalid token!: {:?}", why);
+            Err(String::from("INVALID TOKEN"))
         }
     }
-}
-
-pub fn get_user_data_from_token(token: &String) -> Result<String, String> {
-    let uuid = get_uuid_from_token(token).unwrap();
-    let data = get_user_data_from_uuid(uuid);
-    return serde_json::to_string(&data).map_err(|_| String::from("bad-request"))
 }
