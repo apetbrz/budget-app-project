@@ -17,16 +17,23 @@
             <p class="browsehappy">You are using an <strong>outdated</strong> browser. Please <a href="#">upgrade your browser</a> to improve your experience.</p>
         <![endif]-->
 
+        <div class="header"></div>
         <div class="main-container">
-            <div class="header"></div>
             <div class="body" id="body">
-                <div class="spacer"></div>
-                <div class="main-controls"></div>
-                <div class="spacer"></div>
+                <div class="data" id="data">
+
+                </div>
+                <label>name</label>
+                <input type="text" id="commandtarget"><br>
+                <label>$</label>
+                <input type="text" id="commanddollarvalue"><br>
+                <button onclick="addNewExpense()">add new expense</button><br>
+                <button onclick="setIncome()">set income to $</button><br>
+                <button onclick="getPaid()">get paid (paycheck, or $ amount)</button><br>
+
             </div>
-            <div class="footer"></div>
         </div>
-        
+        <div class="footer"></div>
         <script src="file/home.js" async defer></script>
     </body>
 </html>

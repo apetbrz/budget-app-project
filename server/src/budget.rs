@@ -5,7 +5,7 @@ use serde_json;
 
 const AUTOMATIC_PAYMENT_PREFIX: char = '*';
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct Budget {
     username: String,
     current_balance: i32,
@@ -143,41 +143,6 @@ impl Budget {
     //save_all(): moves current_balance to savings
     pub fn save_all(&mut self) -> Result<String, String> {
         self.save(self.current_balance)
-    }
-}
-
-impl std::fmt::Display for Budget {
-    //fmt(): Display String has a header, with username, followed by balance and expected pay, and then all expenses
-    //TODO: better?? lol
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "==={{ Welcome, {}! }}===\n", self.username)?;
-        write!(f, "Balance: {}\n", format_dollars(&self.current_balance))?;
-        write!(f, "Income: {}\n", format_dollars(&self.expected_income))?;
-        write!(f, "Savings: {}\n", format_dollars(&self.savings))?;
-        write!(f, "\nExpenses:\n")?;
-
-        let mut loop_output: std::fmt::Result = Ok(());
-
-        for key in self.expected_expenses.iter() {
-            let current_amount = self
-                .current_expenses
-                .get(key.0)
-                .expect(format!("{}-missing-from-current-expenses", key.0).as_str());
-            let category_name = to_title_case(key.0.clone());
-
-            loop_output = write!(
-                f,
-                "{}: {}/{}\n",
-                category_name,
-                format_dollars(current_amount),
-                format_dollars(key.1)
-            );
-            if loop_output.is_err() {
-                break;
-            }
-        }
-
-        loop_output
     }
 }
 

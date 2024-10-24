@@ -185,7 +185,7 @@ fn handle_user(token: String, receiver: mpsc::Receiver<UserThreadCommand>) {
             continue 'thread_loop;
         }
 
-        let mut msg = match msg {
+        let (mut jsondata, mut stream) = match msg {
             UserThreadCommand::UserCommand { jsondata, mut stream } => {
                 time_of_last_command = Instant::now();
                 (jsondata, stream)
@@ -194,7 +194,7 @@ fn handle_user(token: String, receiver: mpsc::Receiver<UserThreadCommand>) {
         };
 
         //parse json message
-        let json: serde_json::Value = serde_json::from_str(&msg.0).unwrap();
+        let json: serde_json::Value = serde_json::from_str(&jsondata).unwrap();
 
         //initialize json object
         let obj: serde_json::Map<String, serde_json::Value>;
@@ -206,7 +206,7 @@ fn handle_user(token: String, receiver: mpsc::Receiver<UserThreadCommand>) {
         //???
         else {
             println!("what? how did i receive a json object that wasnt an Object");
-            http_utils::send_response(http_utils::bad_request().unwrap(), &mut msg.1);
+            http_utils::send_response(http_utils::bad_request().unwrap(), &mut stream);
             continue 'thread_loop;
             //TODO: do something
         }
@@ -216,7 +216,7 @@ fn handle_user(token: String, receiver: mpsc::Receiver<UserThreadCommand>) {
 
         //if the command isnt there, its invalid!
         if let None = command {
-            http_utils::send_response(http_utils::bad_request().unwrap(), &mut msg.1);
+            http_utils::send_response(http_utils::bad_request().unwrap(), &mut stream);
             continue 'thread_loop;
         }
 
@@ -224,13 +224,61 @@ fn handle_user(token: String, receiver: mpsc::Receiver<UserThreadCommand>) {
         if let serde_json::Value::String(command) = command.unwrap() {
             //match it to get the command to run
             match command.as_str() {
+                "new" => {
+                    
+                    let result: Result<String, String> = {
+                        let label: String = String::from(obj.get("label").unwrap().as_str().unwrap());
+                        let amount = obj.get("amount").unwrap().as_str().unwrap().parse().unwrap();
+                        user_budget.add_expense(&label, crate::budget::dollars_to_cents(amount));
+                        
+                        serde_json::to_string(&user_budget).map_err(|_err| String::from("failed to build json string"))
+                    };
+
+                    match result {
+                        Ok(output) => {
+                            http_utils::send_response(http_utils::ok_json(StatusCode::OK, output).unwrap(), &mut stream);
+                        }
+                        Err(msg) => {
+                            http_utils::send_response(http_utils::bad_request().unwrap(), &mut stream);
+                        }
+                    }
+                }
+                "getpaid" => {
+                    match obj.get("amount"){
+                        Some(value) => {
+                            let value: f32 = value.as_str().unwrap().parse().unwrap();
+                            user_budget.get_paid_value(crate::budget::dollars_to_cents(value));
+                            let output = serde_json::to_string(&user_budget).unwrap();
+                            http_utils::send_response(http_utils::ok_json(StatusCode::OK, output).unwrap(), &mut stream);
+                        },
+                        None => {
+                            user_budget.get_paid();
+                            let output = serde_json::to_string(&user_budget).unwrap();
+
+                            http_utils::send_response(http_utils::ok_json(StatusCode::OK, output).unwrap(), &mut stream);
+                        }
+                    }
+                }
+                "setincome" => {
+                    match obj.get("amount"){
+                        Some(value) => {
+                            let value: f32 = value.as_str().unwrap().parse().unwrap();
+                            user_budget.set_income(crate::budget::dollars_to_cents(value));
+                            let output = serde_json::to_string(&user_budget).unwrap();
+                            http_utils::send_response(http_utils::ok_json(StatusCode::OK, output).unwrap(), &mut stream);
+                        },
+                        None => {
+                            http_utils::send_response(http_utils::bad_request().unwrap(), &mut stream);
+                        }
+                    }
+                }
                 _ => {
-                    http_utils::send_response(http_utils::bad_request().unwrap(), &mut msg.1);
+                    http_utils::send_response(http_utils::bad_request().unwrap(), &mut stream);
                     //unimplemented
                 }
             } //end command match
         } else {
-            http_utils::send_response(http_utils::bad_request().unwrap(), &mut msg.1);
+            http_utils::send_response(http_utils::bad_request().unwrap(), &mut stream);
         }
 
         println!("\tuser thread took: {:?} --- user: {:?}", now.elapsed(), id);

@@ -274,7 +274,7 @@ impl Router {
             .add_child("login", Leaf(Content::LoginRequest));
 
         tree.select_child("/").unwrap()
-            .add_child("app", Leaf(Content::UserCommand));
+            .add_child("user", Leaf(Content::UserCommand));
 
         tree
     }

@@ -2,38 +2,38 @@ html, body{
     height: 100%;
 }
 
-body {
-    display: grid;
-    justify-items: center;
-}
-.main-container {
-    display: grid;
-    grid-template-rows: 2fr 8fr 1fr;
-    height: 92%;
-    max-width: 50vw;
-    place-items: stretch;
-}
-
 .header {
     background-color: red;
-    grid-row: 1;
-    height: 100%;
+    height: 20vh;
+    width: 100%;
     padding: 1ch;
     margin: 1ch;
+}
+
+.main-container {
+    display: grid;
+    height: 50vh;
+    width: 100%;
 }
 
 .body {
     background-color: green;
-    grid-row: 2;
-    height: 100%;
+    height: 90%;
+    max-width: 50vw;
     padding: 1ch;
     margin: 1ch;
+    justify-self: center;
+}
+
+.data {
+    overflow-wrap: break-word;
 }
 
 .footer {
     background-color: blue;
     grid-row: 3;
-    height: 100%;
+    height: 10vh;
+    width: 100%;
     padding: 1ch;
     margin: 1ch;
 }
