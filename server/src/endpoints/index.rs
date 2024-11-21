@@ -26,6 +26,12 @@ pub fn bad_request() -> http::Response<Vec<u8>> {
     http_utils::bad_request().unwrap()
 }
 
+pub fn method_not_allowed() -> http::Response<Vec<u8>> {
+    let mut res = http_utils::empty_response(StatusCode::METHOD_NOT_ALLOWED).unwrap();
+    http_utils::add_header(&mut res, "Allow", "GET, POST");
+    res
+}
+
 pub fn secret(
     _ext: &mut path::Iter,
     _data: Option<String>

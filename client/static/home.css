@@ -1,5 +1,7 @@
 html, body{
     height: 100%;
+    max-width: 100%;
+    margin: 0;
 }
 
 .header {
@@ -7,22 +9,23 @@ html, body{
     height: 20vh;
     width: 100%;
     padding: 1ch;
-    margin: 1ch;
+    margin: 0ch;
 }
 
 .main-container {
     display: grid;
-    height: 50vh;
+    min-height: 50vh;
     width: 100%;
+    margin: 1ch;
 }
 
 .body {
     background-color: green;
-    height: 90%;
-    max-width: 50vw;
-    padding: 1ch;
-    margin: 1ch;
+    display: grid;
+    width: 50vw;
+    padding: 3ch;
     justify-self: center;
+    justify-content: center;
 }
 
 .data {
@@ -35,5 +38,5 @@ html, body{
     height: 10vh;
     width: 100%;
     padding: 1ch;
-    margin: 1ch;
+    margin: 0ch;
 }

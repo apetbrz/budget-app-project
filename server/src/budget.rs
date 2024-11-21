@@ -8,11 +8,11 @@ const AUTOMATIC_PAYMENT_PREFIX: char = '*';
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct Budget {
     username: String,
-    current_balance: i32,
-    expected_income: i32,
-    expected_expenses: HashMap<String, i32>,
-    current_expenses: HashMap<String, i32>,
-    savings: i32,
+    current_balance: i64,
+    expected_income: i64,
+    expected_expenses: HashMap<String, i64>,
+    current_expenses: HashMap<String, i64>,
+    savings: i64,
 }
 impl Budget {
     //new(): factory method, returning a new Budget
@@ -29,12 +29,12 @@ impl Budget {
     }
 
     //set_income(): sets expected_income to the new value
-    pub fn set_income(&mut self, cents: i32) {
+    pub fn set_income(&mut self, cents: i64) {
         self.expected_income = cents;
     }
 
     //add_income(): adds new value to expected_income
-    pub fn add_income(&mut self, cents: i32) {
+    pub fn add_income(&mut self, cents: i64) {
         self.set_income(self.expected_income + cents);
     }
 
@@ -55,7 +55,7 @@ impl Budget {
     }
 
     //get_paid_value(): adds given value to current_balance
-    pub fn get_paid_value(&mut self, cents: i32) {
+    pub fn get_paid_value(&mut self, cents: i64) {
         self.current_balance += cents;
     }
 
@@ -67,7 +67,7 @@ impl Budget {
     }
 
     //make_automatic_payments(): adds up total of automatic payments, returns money left over (if positive -> Ok, if negative -> Err)
-    pub fn make_automatic_payments(&mut self, cents: i32) -> Result<i32, i32> {
+    pub fn make_automatic_payments(&mut self, cents: i64) -> Result<i64, i64> {
         let mut autos: Vec<String> = Vec::new();
         let mut payment = 0;
         for key in self.expected_expenses.iter() {
@@ -94,7 +94,7 @@ impl Budget {
     }
 
     //add_expense(): creates a new expense in both HashMaps, with the new value as the expected value in expected_expenses
-    pub fn add_expense(&mut self, name: &str, cents: i32) {
+    pub fn add_expense(&mut self, name: &str, cents: i64) {
         self.expected_expenses
             .insert(name.to_string().to_ascii_lowercase(), cents);
         self.current_expenses
@@ -113,7 +113,7 @@ impl Budget {
     }
 
     //make_dynamic_payment(): makes a payment into current_expenses, with the given value
-    pub fn make_dynamic_payment(&mut self, name: &str, cents: i32) -> Result<String, String> {
+    pub fn make_dynamic_payment(&mut self, name: &str, cents: i64) -> Result<String, String> {
         let name = name.to_ascii_lowercase();
         if let Some(n) = self.current_expenses.get_mut(&name) {
             self.current_balance -= cents;
@@ -130,7 +130,7 @@ impl Budget {
     }
 
     //save(): adds the given amount into savings
-    pub fn save(&mut self, cents: i32) -> Result<String, String> {
+    pub fn save(&mut self, cents: i64) -> Result<String, String> {
         if self.current_balance < cents {
             Err(String::from("Not enough in balance to save that much!"))
         } else {
@@ -147,7 +147,7 @@ impl Budget {
 }
 
 //format_dollars(): takes an amount of cents and formats it to ${X}+.XX
-pub fn format_dollars(cents: &i32) -> String {
+pub fn format_dollars(cents: &i64) -> String {
     let cents = { cents.to_string() };
     let dollars = match cents.len() {
         3.. => cents.split_at(cents.len() - 2),
@@ -163,12 +163,12 @@ pub fn format_dollars(cents: &i32) -> String {
 }
 
 //dollars_to_cents(): takes a decimal amount of dollars and returns it in integer cents
-pub fn dollars_to_cents(dollars: f32) -> i32 {
-    (dollars * 100.0) as i32
+pub fn dollars_to_cents(dollars: f32) -> i64 {
+    (dollars * 100.0) as i64
 }
 
 //parse_dollar_string(): takes a string literal and returns an integer cent amount if valid, or error message if not
-pub fn parse_dollar_string(s: &str) -> Result<i32, String> {
+pub fn parse_dollar_string(s: &str) -> Result<i64, String> {
     if s.is_empty() {
         return Err(String::from("empty-dollar-string"));
     }
@@ -176,7 +176,7 @@ pub fn parse_dollar_string(s: &str) -> Result<i32, String> {
     if s.chars().into_iter().next().unwrap() == '$' {
         s = &s[1..];
     }
-    match s.parse::<i32>() {
+    match s.parse::<i64>() {
         Ok(n) => Ok(n * 100),
         Err(er) => match s.parse::<f32>() {
             Ok(m) => Ok(dollars_to_cents(m)),

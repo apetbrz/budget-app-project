@@ -6,6 +6,7 @@ edition = "2021"
 [dependencies]
 bcrypt = "0.15.1"
 chrono = "0.4.38"
+colored = "2.1.0"
 dotenv = "0.15.0"
 http = "1.1.0"
 http-bytes = "0.1.0"

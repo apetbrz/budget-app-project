@@ -178,6 +178,7 @@ pub struct Router {
     post: RouteNode,
     not_found: Box<dyn Fn() -> http::Response<Vec<u8>>>,
     bad_request: Box<dyn Fn() -> http::Response<Vec<u8>>>, //TODO: error + 404 pages
+    method_not_allowed: Box<dyn Fn() -> http::Response<Vec<u8>>>,
 }
 impl Router {
     //new(): returns default Router with hard-coded routes
@@ -187,6 +188,7 @@ impl Router {
             post: Router::build_post_routes(),
             not_found: Box::new(endpoints::index::not_found),
             bad_request: Box::new(endpoints::index::bad_request),
+            method_not_allowed: Box::new(endpoints::index::method_not_allowed)
         }
     }
 
@@ -211,7 +213,7 @@ impl Router {
             "post" => {
                 tree = &self.post;
             }
-            _ => return Err(&self.bad_request),
+            _ => return Err(&self.method_not_allowed),
         }
 
         //run RouteNode::route() on the target tree
@@ -250,15 +252,8 @@ impl Router {
                 Leaf(new_func_endpoint(Box::new(endpoints::files::favicon))),
             )
             .add_child(
-                "logout",
-                Leaf(Content::LogoutRequest)
-            )
-            .add_child(
                 "user",
-                Leaf(Content::UserDataRequest))
-            .add_child(
-                "drugs",
-                Leaf(new_func_endpoint(Box::new(endpoints::index::secret)))
+                Leaf(Content::UserDataRequest)
             );
 
         tree
@@ -271,7 +266,8 @@ impl Router {
         tree.add_and_select_child("/", Branch(HashMap::new()))
             .add_and_select_child("users", Branch(HashMap::new()))
             .add_child("register", Leaf(Content::RegisterRequest))
-            .add_child("login", Leaf(Content::LoginRequest));
+            .add_child("login", Leaf(Content::LoginRequest))
+            .add_child(  "logout",Leaf(Content::LogoutRequest));
 
         tree.select_child("/").unwrap()
             .add_child("user", Leaf(Content::UserCommand));

@@ -21,7 +21,12 @@
         <div class="main-container">
             <div class="body" id="body">
                 <div class="data" id="data">
-
+                    <div id="username"></div>
+                    <div id="income"></div>
+                    <div id="balance"></div>
+                    <div id="savings"></div>
+                    <ul id="expectedExpenses"></ul>
+                    <ul id="currentExpenses"></ul>
                 </div>
                 <label>name</label>
                 <input type="text" id="commandtarget"><br>
@@ -30,6 +35,7 @@
                 <button onclick="addNewExpense()">add new expense</button><br>
                 <button onclick="setIncome()">set income to $</button><br>
                 <button onclick="getPaid()">get paid (paycheck, or $ amount)</button><br>
+                <button onclick="logout()">log out</button>
 
             </div>
         </div>

@@ -4,22 +4,25 @@ use std::{
     ffi::OsStr, io::Write, net::TcpStream, path::Path
 };
 
-use crate::file_utils;
+use crate::{file_utils, server::TimedStream};
 
 const REQ_BODY_TRUNCATE_LEN: usize = 16;
 
 pub fn send_response(
     mut response: http::Response<Vec<u8>>,
-    stream: &mut TcpStream,
+    stream: &mut TimedStream,
 ) -> Result<(), std::io::Error> {
     //print the response
-    println!("\nresponse: {}\n", stringify_response(&response));
+    println!("\n--> {}\n", stringify_response(&response));
 
     //write the response to TCP connection stream, as bytes
     stream.write_all(&*serialize_response(&mut response)).unwrap();
 
     //"flush" the stream to send it out
-    stream.flush()
+    stream.flush()?;
+    
+    println!("  [ response latency: {:?} ]", stream.elapsed());
+    Ok(())
 }
 
 //serialize_response(): takes a mutable reference to a response

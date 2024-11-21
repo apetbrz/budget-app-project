@@ -5,6 +5,7 @@ use std::thread;
 
 use crate::db::UserInfo;
 use crate::endpoints::users::login;
+use crate::server::TimedStream;
 use crate::{endpoints, http_utils, threads::user_threads};
 use http_bytes::http;
 use serde::{Deserialize, Serialize};
@@ -19,8 +20,8 @@ use super::user_threads::UserManagerThreadMessage;
 //TODO: INCLUDE TIMER, FOR LATENCY METRICS, AND SEND RESULTING LATENCY BACK TO HOST(??)
 // - may have to find a way to consolidate latency data to a centralized 'metrics' thread/handler??
 pub enum AuthRequest {
-    Register { jsondata: String, stream: TcpStream },
-    Login { jsondata: String, stream: TcpStream }
+    Register { jsondata: String, stream: TimedStream },
+    Login { jsondata: String, stream: TimedStream }
 }
 
 pub enum AuthError {

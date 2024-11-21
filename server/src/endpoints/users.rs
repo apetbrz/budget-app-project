@@ -36,6 +36,10 @@ pub fn register(data: String) -> Result<String, AuthError> {
         }
     };
 
+    if user.username.is_empty() || user.password.is_empty() {
+        return Err(AuthError::BadCredentials);
+    }
+
     //attempt to hash the password
     user.password = match bcrypt::hash(user.password, HASH_COST) {
         //if successful, great!
@@ -121,6 +125,10 @@ pub fn login(data: String) -> Result<String, AuthError> {
             return Err(AuthError::BadRequest);
         }
     };
+
+    if user.username.is_empty() || user.password.is_empty() {
+        return Err(AuthError::BadCredentials);
+    }
 
     //graab the user's Authentication data from the auth table
     let user_row;

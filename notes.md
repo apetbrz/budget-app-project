@@ -61,3 +61,6 @@ I've got the threads hooked up to account login/registration!!! It's so nice to 
 ### 10/22/24
 
 I put some timers all over the place, to log how long each thread takes. I've still got to figure out how to time the full incoming->outgoing message latency, but that'll come soon. I need to finish hooking up user commands to use budgeting functions on the loaded user data. After that, I think I can call the project "functional" lol.
+
+### 10/24/24
+

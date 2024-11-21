@@ -3,11 +3,12 @@ pub mod files;
 pub mod index;
 pub mod users;
 
-use std::path;
+use std::{ffi::OsStr, path};
 
 use http_bytes::http;
 
 pub enum Content {
+    File(String),
     HandlerFunction(
         Box<dyn Fn(&mut path::Iter, Option<String>) -> Result<http::Response<Vec<u8>>, String>>,
     ),

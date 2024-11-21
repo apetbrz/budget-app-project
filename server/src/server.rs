@@ -11,6 +11,8 @@ use std::{env, path, thread};
 use httparse::{self, Header};
 //http_bytes replacement for http, as http normally doesnt support raw bytes ??
 use http_bytes::http::{self, StatusCode};
+//pretty text colors for emphasis :)
+use colored::Colorize;
 
 use crate::threads::auth::{self, AuthRequest};
 use crate::{db, endpoints};
@@ -21,6 +23,35 @@ use crate::threads::user_threads::{self, UserManagerThreadMessage};
 
 //the limit on http request size (i cant imagine i'd need more than 1kb)
 const MAX_REQUEST_BYTES: usize = 1024;
+
+//time interval (in seconds) for the timeout_clock thread (for checking for inactive user threads)
+const TIMEOUT_INTERVAL: u64 = 60;
+
+#[derive(Debug)]
+pub struct TimedStream {
+    stream: TcpStream,
+    spawntime: Instant
+}
+impl TimedStream {
+    pub fn new(stream: TcpStream) -> TimedStream {
+        TimedStream{stream, spawntime: Instant::now()}
+    }
+    
+    pub fn elapsed(&self) -> Duration{
+        self.spawntime.elapsed()
+    }
+}
+impl std::io::Write for TimedStream {
+    
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        self.stream.write(buf)
+    }
+    
+    fn flush(&mut self) -> std::io::Result<()> {
+        self.stream.flush()
+    }
+    
+}
 
 pub struct Server {
     listener: TcpListener,
@@ -56,17 +87,11 @@ impl Server {
         }
     }
 
-    pub fn send_message_to_auth_thread(
-        &self,
-        msg: AuthRequest,
-    ) -> Result<(), mpsc::SendError<AuthRequest>> {
+    pub fn send_message_to_auth_thread(&self, msg: AuthRequest) -> Result<(), mpsc::SendError<AuthRequest>> {
         self.auth_thread_sender.as_ref().unwrap().send(msg)
     }
 
-    pub fn send_message_to_user_thread(
-        &self,
-        msg: UserManagerThreadMessage,
-    ) -> Result<(), mpsc::SendError<UserManagerThreadMessage>> {
+    pub fn send_message_to_user_thread(&self, msg: UserManagerThreadMessage) -> Result<(), mpsc::SendError<UserManagerThreadMessage>> {
         self.users_thread_sender.as_ref().unwrap().send(msg)
     }
 
@@ -87,17 +112,17 @@ impl Server {
         self.users_thread_sender = Some(user_host_sender.clone());
         self.users_thread_receiver = Some(user_host_receiver);
 
-        thread::spawn(move || {
+        thread::Builder::new().name("user_master".into()).spawn(move || {
             user_threads::handle_user_threads(user_thread_sender, user_thread_receiver);
-        });
+        }).expect("failed to create user_master thread: OS error");
 
-        thread::spawn(move || {
+        thread::Builder::new().name("authenticator".into()).spawn(move || {
             auth::handle_auth_requests(thread_sender, thread_receiver, user_host_sender);
-        });
+        }).expect("failed to create authenticator thread: OS error");
         
-        thread::spawn(move || {
-            generate_timeout_checks(timer_thread_sender, 30);
-        });
+        thread::Builder::new().name("timeout_clock".into()).spawn(move || {
+            generate_timeout_checks(timer_thread_sender);
+        }).expect("failed to create timeout_clock thread: OS error");
 
 
         //request counting statistic
@@ -111,10 +136,10 @@ impl Server {
                 Ok(stream) => {
                     //count req, print
                     req_count += 1;
-                    println!("\n\n\trequest! #{}", req_count);
+                    println!("\n{}{}", "~~~~~~<[ REQUEST! ]>~~~~~~ #".bold().bright_green(), req_count);
 
                     //handle the request, get a response
-                    self.handle_connection(stream).unwrap();
+                    self.handle_connection(TimedStream::new(stream)).unwrap();
                 }
                 Err(why) => {
                     return Err(format!("stream connection failed!:\n{:?}", why));
@@ -128,13 +153,14 @@ impl Server {
     }
 
     //handle_connection(): reads the given TCP stream and sends back a response, using the given Router
-    fn handle_connection(&self, mut stream: TcpStream) -> Result<(), std::io::Error> {
+    fn handle_connection(&self, mut stream: TimedStream) -> Result<(), std::io::Error> {
+        
         //buffer bytes, to store request in
         let mut buffer: [u8; MAX_REQUEST_BYTES] = [0; MAX_REQUEST_BYTES];
         //TODO: check if size is ok? 4kb? how big are requests really?
 
         //create a buffered reader to read through the stream input
-        let mut reader = BufReader::new(stream.try_clone().unwrap());
+        let mut reader = BufReader::new(&stream.stream);
 
         //i was having a difficult issue where sometimes request headers and bodies
         //were arriving at different enough times to where stream.read() would
@@ -183,18 +209,16 @@ impl Server {
         }
 
         //the body will be stored in a vec of the exact required size
-        let mut body = vec![0; body_size];
+        let mut body_bytes = vec![0; body_size];
 
         //read into the body buffer
-        reader.read_exact(&mut body).unwrap();
-
-        //println!("{}", String::from_utf8_lossy(&body));
+        reader.read_exact(&mut body_bytes).unwrap();
 
         //convert headers into bytes
         let headers = headers.as_bytes();
 
         //concatenate the headers and body vecs
-        let mut vec_buf = [headers, body.as_slice()].concat();
+        let mut vec_buf = [headers, body_bytes.as_slice()].concat();
 
         //resize the new vec buffer to fit into the byte array buffer
         vec_buf.resize(MAX_REQUEST_BYTES, 0);
@@ -216,37 +240,35 @@ impl Server {
 
         //print the request method and path
         println!(
-            "{} {}",
+            "<-- {} {} -- body length: {}",
             req.method.unwrap_or("NONE"),
-            req.path.unwrap_or("NONE")
+            req.path.unwrap_or("NONE"),
+            body_size
         );
 
         //Option likely not needed tbh
-        let mut body: Option<String>;
+        let body: Option<String>;
 
         //check the req status, send bad_request if not complete (probably not needed)
         match req_status {
             //if complete request,
             httparse::Status::Complete(body_index) => {
-                //httparse::Status::Complete contains the index in our byte buffer that points
-                //to the start of the body
-                //so grab the bit from that index to the position of the first empty byte
-                let buffer =
-                    buffer[body_index..buffer.iter().position(|&x| x == 0).unwrap()].to_vec();
-
-                //parse the request body into a String
-                body = Some(String::from_utf8(buffer).unwrap().to_owned());
+                
+                let str = String::from_utf8_lossy(&body_bytes);
 
                 //if it's empty, ensure its None
-                if (body.clone().unwrap()).is_empty() {
+                if str.is_empty() {
                     body = None;
+                    println!("body empty");
                 }
                 else{
-                    println!("body: {:?}", &body);
+                    body = Some(str.into());
+                    println!("body: {:?}", body.as_ref().unwrap());
                 }
             }
             //if partial request, just crash. i dont think i even need this
             httparse::Status::Partial => {
+                println!("PARTIAL REQUEST???????");
                 return http_utils::send_response(
                     http_utils::bad_request().unwrap(),
                     &mut stream,
@@ -280,7 +302,7 @@ impl Server {
                     Some(body) => {
                         //send a message containing it (and the tcp stream) to the auth thread
                         match self.send_message_to_auth_thread(AuthRequest::Register {
-                            jsondata: body,
+                            jsondata: body.clone(),
                             stream: stream,
                         }) {
                             //if successful, great!
@@ -308,7 +330,7 @@ impl Server {
                 Content::LoginRequest => match body {
                     Some(body) => {
                         match self.send_message_to_auth_thread(AuthRequest::Login {
-                            jsondata: body,
+                            jsondata: body.clone(),
                             stream: stream,
                         }) {
                             Ok(()) => {
@@ -349,7 +371,7 @@ impl Server {
                 //if it's a user command endpoint, grab the user's token and tell the user thread to handle the command
                 //pass the token, request bodu (json command), and TCP stream
                 Content::UserCommand => {
-                    
+
                     //get the token from the 'authorization' header (if not found, send a bad_request res)
                     let token = match http_utils::find_header_in_request(&req, "authorization"){
                         Some(token) => token,
@@ -357,9 +379,9 @@ impl Server {
                     };
 
                     //if the body exists, send data to user thread
-                    match body {
+                    match body.as_ref() {
                         Some(body) => {
-                            match self.send_message_to_user_thread(UserManagerThreadMessage::UserCommand { token: token, jsondata: body, stream: stream }){
+                            match self.send_message_to_user_thread(UserManagerThreadMessage::UserCommand { token: token, jsondata: body.clone(), stream: stream }){
                                 Ok(()) => {
                                     //TODO: Something?
                                     Ok(())
@@ -388,6 +410,7 @@ impl Server {
                     self.send_message_to_user_thread(UserManagerThreadMessage::UserDataRequest { token: token, stream: stream });
                     Ok(())
                 }
+                Content::File(_) => todo!()
             },
             //if no endpoint is found, run the router's not found handler
             Err(handler) => return http_utils::send_response(handler(), &mut stream),
@@ -397,11 +420,11 @@ impl Server {
 
 //generate_timeout_checks(): creates a looping timer, that sends a TimeoutCheck message
 //to the user manager thread every X seconds
-fn generate_timeout_checks(channel: mpsc::Sender<user_threads::UserManagerThreadMessage>, interval_s: u64) {
+fn generate_timeout_checks(channel: mpsc::Sender<user_threads::UserManagerThreadMessage>) {
     println!("timeout thread spawned: {:?}", thread::current().id());
     loop {
-        thread::sleep(Duration::from_secs(interval_s));
-        println!("timeout check!");
+        thread::sleep(Duration::from_secs(TIMEOUT_INTERVAL));
+        println!("timeout check:");
         channel.send(user_threads::UserManagerThreadMessage::TimeoutCheck);
     }
 }
