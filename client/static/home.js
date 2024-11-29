@@ -22,7 +22,7 @@ window.onload = async () => {
             return res.json();
         }
     }).then((user) => {
-        console.log(user);
+        //console.log(user);
         updateData(user);
     });
 
@@ -31,7 +31,7 @@ window.onload = async () => {
 let sendCommand = async (body) => {
     let bodyJson = JSON.stringify(body);
 
-    console.log("sending command: " + bodyJson);
+    //console.log("sending command: " + bodyJson);
 
     return await fetch("/user", {
         method: "post",
@@ -45,8 +45,8 @@ let sendCommand = async (body) => {
 }
 
 let updateData = (newdata) => {
-    console.log("updating data:")
-    console.table(newdata);
+    //console.log("updating data:")
+    //console.table(newdata);
 
     let text = document.getElementById("data");
     let username = document.getElementById("username");
@@ -55,7 +55,6 @@ let updateData = (newdata) => {
     let savings = document.getElementById("savings");
 
     let expectedExpenses = document.getElementById("expectedExpenses");
-    let currentExpenses = document.getElementById("currentExpenses");
     
     username.textContent = "Welcome, " + newdata.username + "!";
     income.textContent = moneyFormat.format(newdata.expected_income/100);
@@ -75,12 +74,6 @@ let updateData = (newdata) => {
         data.appendChild(label);
         data.appendChild(value);
         expectedExpenses.appendChild(data);
-    }
-    currentExpenses.textContent = '';
-    for(el in newdata.current_expenses){
-        let data = document.createElement("li");
-        data.textContent = el + ": " + moneyFormat.format(newdata.current_expenses[el]/100);
-        currentExpenses.appendChild(data);
     }
     clearInputs();
 }
@@ -155,7 +148,7 @@ let getPaid = async () => {
     }
     else{
         let data = await response.json();
-        console.log(data);
+        //console.log(data);
 
         updateData(data);
     }
@@ -178,7 +171,7 @@ let setIncome = async () => {
     }
     else{
         let data = await response.json();
-        console.log(data);
+        //console.log(data);
 
         updateData(data)
     }
@@ -200,7 +193,7 @@ let raiseIncome = async () => {
     }
     else{
         let data = await response.json();
-        console.log(data);
+        //console.log(data);
 
         updateData(data)
     }
@@ -222,7 +215,7 @@ let save = async () => {
     }
     else{
         let data = await response.json();
-        console.log(data);
+        //console.log(data);
 
         updateData(data)
     }
