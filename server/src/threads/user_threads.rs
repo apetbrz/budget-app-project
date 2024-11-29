@@ -15,24 +15,24 @@ use crate::server::TimedStream;
 const SECONDS_TO_TIMEOUT_USER_THREAD: u64 = 1800;
 
 pub struct UserManagerThreadMessage {
-    pub id: usize,
+    pub id: Option<usize>,
     pub msg: UserManagerMessageType
 }
 impl UserManagerThreadMessage {
     pub fn creation(id: usize, uuid: Uuid, token: String) -> UserManagerThreadMessage {
-        UserManagerThreadMessage { id, msg: UserManagerMessageType::Creation { id: uuid, token } }
+        UserManagerThreadMessage { id: Some(id), msg: UserManagerMessageType::Creation { id: uuid, token } }
     }
     pub fn user_command(id: usize, token: String, jsondata: String, stream: TimedStream) -> UserManagerThreadMessage {
-        UserManagerThreadMessage { id, msg: UserManagerMessageType::UserCommand { token, jsondata, stream } }
+        UserManagerThreadMessage { id: Some(id), msg: UserManagerMessageType::UserCommand { token, jsondata, stream } }
     }
     pub fn user_data_request(id: usize, token: String, stream: TimedStream) -> UserManagerThreadMessage {
-        UserManagerThreadMessage { id, msg: UserManagerMessageType::UserDataRequest { token, stream } }
+        UserManagerThreadMessage { id: Some(id), msg: UserManagerMessageType::UserDataRequest { token, stream } }
     }
     pub fn shutdown(id: usize, token: String, stream: TimedStream) -> UserManagerThreadMessage {
-        UserManagerThreadMessage { id, msg: UserManagerMessageType::Shutdown { token, stream } }
+        UserManagerThreadMessage { id: Some(id), msg: UserManagerMessageType::Shutdown { token, stream } }
     }
     pub fn timeout_check() -> UserManagerThreadMessage {
-        UserManagerThreadMessage { id: 0, msg: UserManagerMessageType::TimeoutCheck }
+        UserManagerThreadMessage { id: None, msg: UserManagerMessageType::TimeoutCheck }
     }
 }
 
@@ -58,23 +58,23 @@ pub enum UserManagerMessageType {
 }
 
 struct UserThreadMessage {
-    id: usize,
+    id: Option<usize>,
     cmd: UserThreadCommandType
 }
 impl UserThreadMessage {
-    pub fn user_command(id: usize, jsondata: String, stream: TimedStream) -> UserThreadMessage {
+    pub fn user_command(id: Option<usize>, jsondata: String, stream: TimedStream) -> UserThreadMessage {
         UserThreadMessage { id, cmd: UserThreadCommandType::UserCommand { jsondata, stream } }
     }
-    pub fn user_data_request(id: usize, stream: TimedStream) -> UserThreadMessage {
+    pub fn user_data_request(id: Option<usize>, stream: TimedStream) -> UserThreadMessage {
         UserThreadMessage { id, cmd: UserThreadCommandType::UserDataRequest { stream } }
     }
-    pub fn shutdown(id: usize) -> UserThreadMessage {
+    pub fn shutdown(id: Option<usize>) -> UserThreadMessage {
         UserThreadMessage { id, cmd: UserThreadCommandType::Shutdown }
     }
-    pub fn timeout_check(id: usize) -> UserThreadMessage {
-        UserThreadMessage { id, cmd: UserThreadCommandType::TimeoutCheck }
+    pub fn timeout_check() -> UserThreadMessage {
+        UserThreadMessage { id: None, cmd: UserThreadCommandType::TimeoutCheck }
     }
-    pub fn check(id: usize) -> UserThreadMessage {
+    pub fn check(id: Option<usize>) -> UserThreadMessage {
         UserThreadMessage { id, cmd: UserThreadCommandType::Check }
     }
 }
@@ -101,7 +101,7 @@ pub fn handle_user_threads(
     //listen to host
     for msg in thread_receiver_from_main.iter() {
         
-        metrics::arrive(msg.id);
+        if let Some(id) = msg.id {metrics::arrive(id) };
 
         //check message type
         match msg.msg {
@@ -180,7 +180,7 @@ pub fn handle_user_threads(
                 print!("{} -> ", thread_map.len());
                 //TODO: wait for response (of "all good!" or "im dead!") instead of looping twice!!!
                 for (k, v) in thread_map.iter() {
-                    v.send(UserThreadMessage::timeout_check(msg.id));
+                    v.send(UserThreadMessage::timeout_check());
                 }
                 thread::sleep(Duration::from_millis(1));
                 thread_map.retain(|k, v| {
@@ -194,7 +194,7 @@ pub fn handle_user_threads(
             }
         }
 
-        metrics::end(msg.id);
+        if let Some(id) = msg.id { metrics::end(id) };
     }
 }
 
@@ -211,7 +211,7 @@ fn handle_user(id: Uuid, token: String, receiver: mpsc::Receiver<UserThreadMessa
     //loop through messages from manager
     'thread_loop: for msg in receiver.iter() {
 
-        metrics::arrive(msg.id);
+        if let Some(id) = msg.id {metrics::arrive(id) };
 
         time_of_last_command = Instant::now();
 
@@ -378,7 +378,7 @@ fn handle_user(id: Uuid, token: String, receiver: mpsc::Receiver<UserThreadMessa
             },
         }
 
-        metrics::end(msg.id);
+        if let Some(id) = msg.id { metrics::end(id) };
 
     }
 
