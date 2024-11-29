@@ -14,15 +14,15 @@ use http_bytes::http::{self, StatusCode};
 //pretty text colors for emphasis :)
 use colored::Colorize;
 
-use crate::threads::auth::{self, AuthRequest};
-use crate::{db, endpoints};
+use crate::threads::auth::{self, AuthMessage, AuthRequest};
+use crate::{db, endpoints, metrics};
 use crate::endpoints::Content;
 use crate::http_utils;
 use crate::router::Router;
 use crate::threads::user_threads::{self, UserManagerThreadMessage};
 
 //the limit on http request size (i cant imagine i'd need more than 1kb)
-const MAX_REQUEST_BYTES: usize = 1024;
+const MAX_REQUEST_BYTES: usize = 4096;
 
 //time interval (in seconds) for the timeout_clock thread (for checking for inactive user threads)
 const TIMEOUT_INTERVAL: u64 = 60;
@@ -30,11 +30,12 @@ const TIMEOUT_INTERVAL: u64 = 60;
 #[derive(Debug)]
 pub struct TimedStream {
     stream: TcpStream,
-    spawntime: Instant
+    pub spawntime: Instant,
+    pub id: usize
 }
 impl TimedStream {
     pub fn new(stream: TcpStream) -> TimedStream {
-        TimedStream{stream, spawntime: Instant::now()}
+        TimedStream{stream, spawntime: Instant::now(), id: metrics::start() }
     }
     
     pub fn elapsed(&self) -> Duration{
@@ -56,8 +57,8 @@ impl std::io::Write for TimedStream {
 pub struct Server {
     listener: TcpListener,
     router: Router,
-    auth_thread_sender: Option<mpsc::Sender<AuthRequest>>,
-    auth_thread_receiver: Option<mpsc::Receiver<AuthRequest>>,
+    auth_thread_sender: Option<mpsc::Sender<AuthMessage>>,
+    auth_thread_receiver: Option<mpsc::Receiver<AuthMessage>>,
     users_thread_sender: Option<mpsc::Sender<UserManagerThreadMessage>>,
     users_thread_receiver: Option<mpsc::Receiver<UserManagerThreadMessage>>,
 }
@@ -87,7 +88,7 @@ impl Server {
         }
     }
 
-    pub fn send_message_to_auth_thread(&self, msg: AuthRequest) -> Result<(), mpsc::SendError<AuthRequest>> {
+    pub fn send_message_to_auth_thread(&self, msg: AuthMessage) -> Result<(), mpsc::SendError<AuthMessage>> {
         self.auth_thread_sender.as_ref().unwrap().send(msg)
     }
 
@@ -97,10 +98,9 @@ impl Server {
 
     //listen(): loops forever through incoming TCP streams and handles them
     pub fn listen(&mut self) -> Result<(), String> {
-        println!("listening on {:?} from thread {:?}", self.listener.local_addr().unwrap(), thread::current().id());
 
-        let (host_sender, thread_receiver) = mpsc::channel::<auth::AuthRequest>();
-        let (thread_sender, host_receiver) = mpsc::channel::<auth::AuthRequest>();
+        let (host_sender, thread_receiver) = mpsc::channel::<auth::AuthMessage>();
+        let (thread_sender, host_receiver) = mpsc::channel::<auth::AuthMessage>();
 
         self.auth_thread_sender = Some(host_sender);
         self.auth_thread_receiver = Some(host_receiver);
@@ -127,26 +127,34 @@ impl Server {
 
         //request counting statistic
         let mut req_count = 0;
+        
+        metrics::finish_startup();
+        println!("listening on {:?} from thread\t{}", self.listener.local_addr().unwrap(), metrics::thread_name_display());
 
         //iterate through incoming TCP connections/requests
         for stream in self.listener.incoming() {
-            let now = Instant::now();
 
             match stream {
                 Ok(stream) => {
                     //count req, print
                     req_count += 1;
-                    println!("\n{}{}", "~~~~~~<[ REQUEST! ]>~~~~~~ #".bold().bright_green(), req_count);
+                    println!("\n{}{}\n", "~~~~~~<[ REQUEST! ]>~~~~~~ ".bold().bright_green(), req_count);
+
+                    let stream = TimedStream::new(stream);
+                    let stream_id = stream.id;
+
+                    metrics::arrive(stream_id);
 
                     //handle the request, get a response
-                    self.handle_connection(TimedStream::new(stream)).unwrap();
+                    let _ = self.handle_connection(stream);
+
+                    metrics::end(stream_id);
                 }
                 Err(why) => {
                     return Err(format!("stream connection failed!:\n{:?}", why));
                 }
             }
 
-            println!("\tmain thread took: {:?}", now.elapsed());
         }
 
         Ok(())
@@ -154,7 +162,7 @@ impl Server {
 
     //handle_connection(): reads the given TCP stream and sends back a response, using the given Router
     fn handle_connection(&self, mut stream: TimedStream) -> Result<(), std::io::Error> {
-        
+
         //buffer bytes, to store request in
         let mut buffer: [u8; MAX_REQUEST_BYTES] = [0; MAX_REQUEST_BYTES];
         //TODO: check if size is ok? 4kb? how big are requests really?
@@ -236,11 +244,14 @@ impl Server {
         let mut req = httparse::Request::new(&mut req_headers);
 
         //req_status: whether the request was successfully received entirely, without data loss
-        let req_status = req.parse(&buffer).unwrap();
+        let Ok(req_status) = req.parse(&buffer) else {
+            http_utils::send_response(http_utils::bad_request().unwrap(), &mut stream);
+            return Ok(());
+        };
 
         //print the request method and path
         println!(
-            "<-- {} {} -- body length: {}",
+            "\t<-- {} {} -- body length: {}",
             req.method.unwrap_or("NONE"),
             req.path.unwrap_or("NONE"),
             body_size
@@ -259,18 +270,19 @@ impl Server {
                 //if it's empty, ensure its None
                 if str.is_empty() {
                     body = None;
-                    println!("body empty");
+                    println!("\t\tbody empty\n");
                 }
                 else{
                     body = Some(str.into());
-                    println!("body: {:?}", body.as_ref().unwrap());
+                    println!("\t\tbody: {:?}\n", body.as_ref().unwrap());
                 }
             }
             //if partial request, just crash. i dont think i even need this
             httparse::Status::Partial => {
                 println!("PARTIAL REQUEST???????");
+                println!("{:?}", String::from_utf8(buffer.to_vec()));
                 return http_utils::send_response(
-                    http_utils::bad_request().unwrap(),
+                    http_utils::content_too_large().unwrap(),
                     &mut stream,
                 );
             }
@@ -281,6 +293,8 @@ impl Server {
 
         //create the path iterator
         let mut path_iterator = path::Path::new(req.path.unwrap()).iter();
+
+        //TODO: REFACTOR THIS MESS LMAO
 
         //route the request
         match self.router.route(&mut path_iterator, req.method.unwrap()) {
@@ -301,13 +315,9 @@ impl Server {
                     //if the body exists, 
                     Some(body) => {
                         //send a message containing it (and the tcp stream) to the auth thread
-                        match self.send_message_to_auth_thread(AuthRequest::Register {
-                            jsondata: body.clone(),
-                            stream: stream,
-                        }) {
+                        match self.send_message_to_auth_thread(AuthMessage::register(body.clone(), stream)) {
                             //if successful, great!
                             Ok(()) => {
-                                //TODO: CREATE USER THREAD
                                 Ok(())
                             },
                             //if failed, the auth thread is broken! cant do anything! crash!
@@ -329,12 +339,8 @@ impl Server {
                 //pass the req body (json) and TCP stream
                 Content::LoginRequest => match body {
                     Some(body) => {
-                        match self.send_message_to_auth_thread(AuthRequest::Login {
-                            jsondata: body.clone(),
-                            stream: stream,
-                        }) {
+                        match self.send_message_to_auth_thread(AuthMessage::login(body.clone(), stream)) {
                             Ok(()) => {
-                                //TODO: CREATE USER THREAD
                                 Ok(()) 
                             },
                             Err(send_error) => {
@@ -359,7 +365,7 @@ impl Server {
                     //if it exists,
                     if let Some(token) = token {
                         //tell user thread to handle logout
-                        self.send_message_to_user_thread(UserManagerThreadMessage::Shutdown { token: token, stream: stream });
+                        self.send_message_to_user_thread(UserManagerThreadMessage::shutdown(stream.id, token, stream));
                         Ok(())
                     }
                     //if not,bad request.
@@ -381,7 +387,7 @@ impl Server {
                     //if the body exists, send data to user thread
                     match body.as_ref() {
                         Some(body) => {
-                            match self.send_message_to_user_thread(UserManagerThreadMessage::UserCommand { token: token, jsondata: body.clone(), stream: stream }){
+                            match self.send_message_to_user_thread(UserManagerThreadMessage::user_command(stream.id, token, body.clone(), stream)){
                                 Ok(()) => {
                                     //TODO: Something?
                                     Ok(())
@@ -407,7 +413,7 @@ impl Server {
                         Some(token) => token,
                         None => return http_utils::send_response(http_utils::bad_request().unwrap(), &mut stream)
                     };
-                    self.send_message_to_user_thread(UserManagerThreadMessage::UserDataRequest { token: token, stream: stream });
+                    self.send_message_to_user_thread(UserManagerThreadMessage::user_data_request(stream.id, token, stream));
                     Ok(())
                 }
                 Content::File(_) => todo!()
@@ -415,16 +421,17 @@ impl Server {
             //if no endpoint is found, run the router's not found handler
             Err(handler) => return http_utils::send_response(handler(), &mut stream),
         }
+
     }
 }
 
 //generate_timeout_checks(): creates a looping timer, that sends a TimeoutCheck message
 //to the user manager thread every X seconds
 fn generate_timeout_checks(channel: mpsc::Sender<user_threads::UserManagerThreadMessage>) {
-    println!("timeout thread spawned: {:?}", thread::current().id());
+    eprintln!("\t\ttimeout thread spawned:\t{}", metrics::thread_name_display());
     loop {
         thread::sleep(Duration::from_secs(TIMEOUT_INTERVAL));
-        println!("timeout check:");
-        channel.send(user_threads::UserManagerThreadMessage::TimeoutCheck);
+        //eprintln!("timeout check:");
+        channel.send(user_threads::UserManagerThreadMessage::timeout_check());
     }
 }

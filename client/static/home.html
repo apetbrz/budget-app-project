@@ -17,26 +17,43 @@
             <p class="browsehappy">You are using an <strong>outdated</strong> browser. Please <a href="#">upgrade your browser</a> to improve your experience.</p>
         <![endif]-->
 
-        <div class="header"></div>
+        <div class="header">
+            <div class="logo">do(Budget)</div>
+        </div>
         <div class="main-container">
             <div class="body" id="body">
+                <div class="username" id="username"></div><br>
                 <div class="data" id="data">
-                    <div id="username"></div>
-                    <div id="income"></div>
-                    <div id="balance"></div>
-                    <div id="savings"></div>
-                    <ul id="expectedExpenses"></ul>
-                    <ul id="currentExpenses"></ul>
+                    <div class="account-data">
+                        <label>Income: </label>
+                        <div class="data-item" id="income"></div>
+                        <label>Balance: </label>
+                        <div class="data-item" id="balance"></div>
+                        <label>Savings: </label>
+                        <div class="data-item" id="savings"></div>
+                    </div>
+                    <div class="expense-data">
+                        <label>Expenses: </label><br>
+                        <ul class="data-item" id="expectedExpenses"></ul>
+                    </div>
+                </div><br>
+                <div class="user-menu">
+                    <div class="text-inputs">
+                        <label>name</label>
+                        <input type="text" id="commandtarget">
+                        <label>$</label>
+                        <input type="text" id="commanddollarvalue">
+                    </div>
+                    <div class="controls">
+                        <button onclick="getPaid()">get paid (paycheck, or $ amount)</button>
+                        <button onclick="save()">add to savings ($ amount, or "all")</button>
+                        <button onclick="addNewExpense()">add new expense</button>
+                        <button onclick="payExpense()">pay expense (full, or $ amount)</button>
+                        <button onclick="setIncome()">set income to $</button>
+                        <button onclick="raiseIncome()">raise income by $</button>
+                        <button onclick="logout()">log out</button>
+                    </div>
                 </div>
-                <label>name</label>
-                <input type="text" id="commandtarget"><br>
-                <label>$</label>
-                <input type="text" id="commanddollarvalue"><br>
-                <button onclick="addNewExpense()">add new expense</button><br>
-                <button onclick="setIncome()">set income to $</button><br>
-                <button onclick="getPaid()">get paid (paycheck, or $ amount)</button><br>
-                <button onclick="logout()">log out</button>
-
             </div>
         </div>
         <div class="footer"></div>

@@ -62,5 +62,6 @@ I've got the threads hooked up to account login/registration!!! It's so nice to 
 
 I put some timers all over the place, to log how long each thread takes. I've still got to figure out how to time the full incoming->outgoing message latency, but that'll come soon. I need to finish hooking up user commands to use budgeting functions on the loaded user data. After that, I think I can call the project "functional" lol.
 
-### 10/24/24
+### 11/21/24
 
+It's been a bit since my last update. Other classes got in the way. Updates since: I've polished the HTTP server tremendously. It works pretty well, and I can successfully login/register and perform some (not all, yet) budgeting functions. It's fairly stable, with the worst possible errors being compartmentalized into user threads, meaning if anything any user does breaks something, it only breaks their thread, meaning they are forced to log back in again. I've also done some testing with DoS attacks on the registration, it seems to slow down the auth thread tremendously but has no impact on logged in user functionality. 

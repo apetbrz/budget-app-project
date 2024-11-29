@@ -10,17 +10,24 @@ use crate::{
 };
 use crate::threads::auth::AuthRequest;
 
-const HASH_COST: u32 = 10;
+const HASH_COST: u32 = 7;
 
 //register() takes user data as a string, parses it,
 //hashes the password, and then inserts into databases
-pub fn register(data: String) -> Result<String, AuthError> {
+pub fn register(data: String) -> Result<(Uuid, String), AuthError> {
+    
+    eprintln!("\t\tbegin register()");
+
+    let now = Instant::now();
+
     //grab a connection from the AUTH database's connection pool
     let user_db_access = db::USER_DB.read().unwrap();
     let conn = user_db_access.connection();
 
-    //drop access to the static db access, just in case
+    //drop lock to the static db, just in case
     drop(user_db_access);
+
+    eprintln!("\t\tconnection acquired: {:?}", now.elapsed());
 
     //attempt to parse the user from the input String
     let mut user: UserCredentials = match serde_json::from_str(data.trim()) {
@@ -39,7 +46,9 @@ pub fn register(data: String) -> Result<String, AuthError> {
     if user.username.is_empty() || user.password.is_empty() {
         return Err(AuthError::BadCredentials);
     }
-
+    
+    eprintln!("\t\tuser parsed from json string: {:?}", now.elapsed());
+    
     //attempt to hash the password
     user.password = match bcrypt::hash(user.password, HASH_COST) {
         //if successful, great!
@@ -50,9 +59,13 @@ pub fn register(data: String) -> Result<String, AuthError> {
             return Err(AuthError::BadRequest);
         }
     };
+    
+    eprintln!("\t\tpassword hashed: {:?}", now.elapsed());
 
     //generate a new uuid
     let id = uuid::Uuid::new_v4();
+
+    eprintln!("\t\tuuid generated: {:?}", now.elapsed());
 
     //TODO: SQL TRANSACTION RATHER THAN TWO SEPARATE EXECUTIONS
 
@@ -67,19 +80,24 @@ pub fn register(data: String) -> Result<String, AuthError> {
         },
         //if not, who knows! some SQL error, print it out and send back a 400
         Err(why) => {
-            println!("holy hell, register failed?!\n{}", why.to_string());
-            return Err(AuthError::BadRequest);
+            println!("user registration failure:\n{}", format!("{:?}", why));
+            let rusqlite::Error::SqliteFailure(err, msg) = why else {
+                return Err(AuthError::BadRequest);
+            };
+            if err.code == rusqlite::ErrorCode::ConstraintViolation {
+                return Err(AuthError::AlreadyExists);
+            }
         }
     }
 
-    //repeat above but for user data table
-    let user_db_access = db::USER_DB.read().unwrap();
-    let conn = user_db_access.connection();
+    eprintln!("\t\tuser inserted into auth table: {:?}", now.elapsed());
 
-    drop(user_db_access);
-
+    //generate empty budget to store in database!
     let new_budget = Budget::new(user.username.clone());
 
+    eprintln!("\t\tempty budget generated: {:?}", now.elapsed());
+
+    //insert new user data into userdata table
     match conn.execute(
         "INSERT INTO users(uuid, jsondata, jsonhistory) VALUES (?, ?, ?)",
         rusqlite::params![id, serde_json::to_string(&new_budget).unwrap(), "{}"],
@@ -98,20 +116,31 @@ pub fn register(data: String) -> Result<String, AuthError> {
         }
     }
 
+    eprintln!("\t\tuser added to data table: {:?}", now.elapsed());
+
     println!("user registered!");
+
     let user_info = UserInfo {
         id: id,
         username: user.username,
     };
 
-    return Ok(create_token(user_info));
+    let token = create_token(user_info);
+
+    eprintln!("\t\ttoken generated - function complete!: {:?}", now.elapsed());
+
+    return Ok((id, token));
 }
 
 //login() takes user data as a string, parses it,
 //checks the password against the hash in the database,
 //and then (if valid) returns a JSONWEBTOKEN
-pub fn login(data: String) -> Result<String, AuthError> {
+pub fn login(data: String) -> Result<(Uuid, String), AuthError> {
 
+    eprintln!("\t\tbegin login()");
+
+    let now = Instant::now();
+    
     //attempt to parse the user from the input String
     let user: UserCredentials = match serde_json::from_str(data.trim()) {
         //if successful, great!
@@ -130,7 +159,9 @@ pub fn login(data: String) -> Result<String, AuthError> {
         return Err(AuthError::BadCredentials);
     }
 
-    //graab the user's Authentication data from the auth table
+    eprintln!("\t\tuser parsed from json string: {:?}", now.elapsed());
+
+    //grab the user's Authentication data from the auth table
     let user_row;
 
     if let Ok(row) = get_user_auth_row(user.username){
@@ -140,30 +171,34 @@ pub fn login(data: String) -> Result<String, AuthError> {
         return Err(AuthError::BadCredentials);
     }
 
+    eprintln!("\t\tuser grabbed from database by username: {:?}", now.elapsed());
+
     //verify the input password against the stored hash
-    match bcrypt::verify(user.password, user_row.password.as_str()) {
-        //if method successful,
-        Ok(valid) => {
-            //check if valid
-            if valid {
-                //if so, great! grab the user's public info,
-                let user_info = UserInfo {
-                    id: user_row.uuid,
-                    username: user_row.username,
-                };
-                //and return a generated token!
-                return Ok(create_token(user_info));
-            } 
-            //if not valid, return a bad_credentials
-            else {
-                return Err(AuthError::BadCredentials);
-            }
-        }
-        //if error in verification, send bad_request
-        Err(why) => {
-            return Err(AuthError::BadRequest);
-        }
+
+    let Ok(valid_credentials) = bcrypt::verify(user.password, user_row.password.as_str()) else {
+        return Err(AuthError::BadRequest)
+    };
+
+    eprintln!("\t\tpassword hash checked: {:?}", now.elapsed());
+
+    //if not valid, return BadCredentials message
+    if !valid_credentials {
+        return Err(AuthError::BadCredentials);
     }
+
+    //if valid, great! grab the user's public info,
+    let user_info = UserInfo {
+        id: user_row.uuid,
+        username: user_row.username,
+    };
+
+    //generate a token,
+    let token = create_token(user_info);
+
+    eprintln!("\t\ttoken generated - function complete!: {:?}", now.elapsed());
+
+    //and return it!
+    return Ok((user_row.uuid, token));
 }
 
 //create_token_response() takes in UserInfo, generates a jsonwebtoken, and sends a CREATED response

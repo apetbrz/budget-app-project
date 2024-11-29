@@ -12,7 +12,7 @@ use uuid::Uuid;
 //im statically initializing a RwLock-ed reference
 //to a pool of database connections, to the file
 pub static USER_DB: LazyLock<RwLock<Database>> =
-    LazyLock::new(|| RwLock::new(Database::new("user")));
+    LazyLock::new(|| RwLock::new(Database::new("db")));
 
 pub struct Database {
     connection_pool: r2d2::Pool<r2d2_sqlite::SqliteConnectionManager>,
@@ -29,8 +29,6 @@ impl Database {
     }
 
     pub fn create_table(&self, table: String) {
-        println!("linking to table: {}", table.split("(").next().unwrap());
-
         self.connection_pool
             .get()
             .unwrap()

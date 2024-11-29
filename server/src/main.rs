@@ -21,9 +21,13 @@ mod db;
 mod threads;
 //used for budgeting functionality
 mod budget;
+//used for logging and displaying metrics
+mod metrics;
 
 //entrypoint
 fn main() -> Result<(), String> {
+
+    metrics::begin_startup();
     
     //set .env variables
     env::set_var("SERVER_PORT", "3000");

@@ -9,15 +9,38 @@ use http_bytes::http::StatusCode;
 use httparse::Status;
 use uuid::Uuid;
 
-use crate::budget::Budget;
+use crate::budget::{self, Budget};
 use crate::endpoints::{self, users};
-use crate::http_utils;
+use crate::{http_utils, metrics};
 use crate::server::TimedStream;
 
 const SECONDS_TO_TIMEOUT_USER_THREAD: u64 = 1800;
 
-pub enum UserManagerThreadMessage {
+pub struct UserManagerThreadMessage {
+    pub id: usize,
+    pub msg: UserManagerMessageType
+}
+impl UserManagerThreadMessage {
+    pub fn creation(id: usize, uuid: Uuid, token: String) -> UserManagerThreadMessage {
+        UserManagerThreadMessage { id, msg: UserManagerMessageType::Creation { id: uuid, token } }
+    }
+    pub fn user_command(id: usize, token: String, jsondata: String, stream: TimedStream) -> UserManagerThreadMessage {
+        UserManagerThreadMessage { id, msg: UserManagerMessageType::UserCommand { token, jsondata, stream } }
+    }
+    pub fn user_data_request(id: usize, token: String, stream: TimedStream) -> UserManagerThreadMessage {
+        UserManagerThreadMessage { id, msg: UserManagerMessageType::UserDataRequest { token, stream } }
+    }
+    pub fn shutdown(id: usize, token: String, stream: TimedStream) -> UserManagerThreadMessage {
+        UserManagerThreadMessage { id, msg: UserManagerMessageType::Shutdown { token, stream } }
+    }
+    pub fn timeout_check() -> UserManagerThreadMessage {
+        UserManagerThreadMessage { id: 0, msg: UserManagerMessageType::TimeoutCheck }
+    }
+}
+
+pub enum UserManagerMessageType {
     Creation {
+        id: Uuid,
         token: String,
     },
     UserCommand {
@@ -36,8 +59,28 @@ pub enum UserManagerThreadMessage {
     TimeoutCheck,
 }
 
-#[derive(Debug)]
-enum UserThreadCommand {
+struct UserThreadMessage {
+    id: usize,
+    cmd: UserThreadCommandType
+}
+impl UserThreadMessage {
+    pub fn user_command(id: usize, jsondata: String, stream: TimedStream) -> UserThreadMessage {
+        UserThreadMessage { id, cmd: UserThreadCommandType::UserCommand { jsondata, stream } }
+    }
+    pub fn user_data_request(id: usize, stream: TimedStream) -> UserThreadMessage {
+        UserThreadMessage { id, cmd: UserThreadCommandType::UserDataRequest { stream } }
+    }
+    pub fn shutdown(id: usize) -> UserThreadMessage {
+        UserThreadMessage { id, cmd: UserThreadCommandType::Shutdown }
+    }
+    pub fn timeout_check(id: usize) -> UserThreadMessage {
+        UserThreadMessage { id, cmd: UserThreadCommandType::TimeoutCheck }
+    }
+    pub fn check(id: usize) -> UserThreadMessage {
+        UserThreadMessage { id, cmd: UserThreadCommandType::Check }
+    }
+}
+enum UserThreadCommandType {
     UserCommand { jsondata: String, stream: TimedStream },
     UserDataRequest { stream: TimedStream },
     Shutdown,
@@ -53,35 +96,39 @@ pub fn handle_user_threads(
     thread_receiver_from_main: mpsc::Receiver<UserManagerThreadMessage>,
 ) {
     //create a map to link jsonwebtokens to users
-    let mut thread_map: HashMap<String, mpsc::Sender<UserThreadCommand>> = HashMap::new();
+    let mut thread_map: HashMap<String, mpsc::Sender<UserThreadMessage>> = HashMap::new();
 
-    println!("user manager thread spawned: {:?}", thread::current().id());
+    eprintln!("\t\tuser manager thread spawned:\t{}", metrics::thread_name_display());
 
     //listen to host
     for msg in thread_receiver_from_main.iter() {
         
-        let now = Instant::now();
+        metrics::arrive(msg.id);
 
         //check message type
-        match msg {
+        match msg.msg {
             //Creation: create a new thread, linking a JSONWEBTOKEN to a UUID
-            UserManagerThreadMessage::Creation { token } => {
+            UserManagerMessageType::Creation { id, token } => {
                 //create the channel
-                let (host_sender, thread_receiver) = mpsc::channel::<UserThreadCommand>();
-
-                //insert the thread link into the map
-                thread_map.insert(token.clone(), host_sender);
+                let (host_sender, thread_receiver) = mpsc::channel::<UserThreadMessage>();
+                let thread_token = token.clone();
 
                 //spawn the thread
-                let handle = thread::spawn(move || {
-                    handle_user(token, thread_receiver);
-                });
+                let Ok(handle) = thread::Builder::new().name(id.to_string()).spawn(move || {
+                    handle_user(id, thread_token, thread_receiver);
+                }) else { 
+                    eprintln!("failure to create thread for user {:?} !", id);
+                    continue;
+                };
+                
+                //insert the thread link into the map
+                thread_map.insert(token, host_sender);
 
-                println!("thread spawned!: {:?}", handle.thread().id());
+                println!("\t\t{} - currently managing {} threads", metrics::thread_name_display(), thread_map.len());
             }
 
             //UserCommand: pass a user request to an existing user thread
-            UserManagerThreadMessage::UserCommand {
+            UserManagerMessageType::UserCommand {
                 token,
                 jsondata,
                 mut stream,
@@ -91,7 +138,7 @@ pub fn handle_user_threads(
                     //if it exists
                     Some(sender) => {
                         //send the data
-                        sender.send(UserThreadCommand::UserCommand { jsondata, stream });
+                        sender.send(UserThreadMessage::user_command(msg.id, jsondata, stream));
                     }
                     //otherwise,
                     None => {
@@ -101,14 +148,14 @@ pub fn handle_user_threads(
                     }
                 }
             }
-
-            UserManagerThreadMessage::UserDataRequest { 
+            //UserDataRequest: return requested loaded user data
+            UserManagerMessageType::UserDataRequest { 
                 token, 
                 mut stream 
             } => {
                 match thread_map.get(&token) {
                     Some(sender) => {
-                        sender.send(UserThreadCommand::UserDataRequest { stream });
+                        sender.send(UserThreadMessage::user_data_request(msg.id, stream));
                     }
                     None => {
                         http_utils::send_response(http_utils::unauthorized().unwrap(), &mut stream)
@@ -116,12 +163,12 @@ pub fn handle_user_threads(
                     }
                 }
             }
-
-            
-            UserManagerThreadMessage::Shutdown { token, mut stream } => {
+            //Shurdown: kill thread
+            UserManagerMessageType::Shutdown { token, mut stream } => {
                 match thread_map.get(&token) {
                     Some(sender) => {
-                        sender.send(UserThreadCommand::Shutdown);
+                        sender.send(UserThreadMessage::shutdown(msg.id));
+                        thread_map.remove(&token);
                         http_utils::send_response(http_utils::empty_response(StatusCode::OK).unwrap(), &mut stream);
                     }
                     None => {
@@ -130,31 +177,32 @@ pub fn handle_user_threads(
                     }
                 }
             }
-            UserManagerThreadMessage::TimeoutCheck => {
+            //TimeoutCheck: check all threads for timeout
+            UserManagerMessageType::TimeoutCheck => {
+                print!("{} -> ", thread_map.len());
                 //TODO: wait for response (of "all good!" or "im dead!") instead of looping twice!!!
                 for (k, v) in thread_map.iter() {
-                    v.send(UserThreadCommand::TimeoutCheck);
+                    v.send(UserThreadMessage::timeout_check(msg.id));
                 }
                 thread::sleep(Duration::from_millis(1));
                 thread_map.retain(|k, v| {
-                    if let Err(_) = v.send(UserThreadCommand::Check) {
+                    if let Err(_) = v.send(UserThreadMessage::check(msg.id)) {
                         false
                     } else {
                         true
                     }
                 });
+                println!("{} threads after timeout", thread_map.len());
             }
         }
 
-        println!("\tmaster user thread took: {:?}", now.elapsed())
+        metrics::end(msg.id);
     }
 }
 
-fn handle_user(token: String, receiver: mpsc::Receiver<UserThreadCommand>) {
-    //TODO: INSERT BUDGET APP CREATION HERE, GRABBING USER DATA FROM DATABASE AND STORING IN MEMORY
-    let id = users::get_uuid_from_token(&token).unwrap();
+fn handle_user(id: Uuid, token: String, receiver: mpsc::Receiver<UserThreadMessage>) {
     
-    println!("hello world! from thread {:?} for {:?}", thread::current().id(), id);
+    println!("\t\t\tuser thread spawned:\t{}", metrics::thread_name_display());
 
     //keep track of how long since last command, for timing out
     let mut time_of_last_command = Instant::now();
@@ -165,19 +213,24 @@ fn handle_user(token: String, receiver: mpsc::Receiver<UserThreadCommand>) {
     //loop through messages from manager
     'thread_loop: for mut msg in receiver.iter() {
 
-        let now = Instant::now();
+        metrics::arrive(msg.id);
 
-        match msg {
-            UserThreadCommand::UserDataRequest { mut stream } => {
+        time_of_last_command = Instant::now();
+
+        match msg.cmd {
+            //UserDataRequest: json stringify the loaded budget data
+            UserThreadCommandType::UserDataRequest { mut stream } => {
                 let jsondata = serde_json::to_string(&user_budget).unwrap();
                 http_utils::send_response(http_utils::ok_json(StatusCode::OK, jsondata).unwrap(), &mut stream);
                 continue 'thread_loop;
             },
-            UserThreadCommand::Shutdown => {
+            //Shutdown: exit thread loop 
+            UserThreadCommandType::Shutdown => {
                 println!("shutting down thread {:?} : {:?}", thread::current().id(), id);
                 break 'thread_loop;
             },
-            UserThreadCommand::TimeoutCheck => {
+            //TimeoutCheck: check how long since last command, and shut down if too long
+            UserThreadCommandType::TimeoutCheck => {
                 if time_of_last_command.elapsed() > Duration::from_secs(SECONDS_TO_TIMEOUT_USER_THREAD)
                 {
                     println!("shutting down thread {:?} : {:?} due to timeout", thread::current().id(), id);
@@ -185,26 +238,21 @@ fn handle_user(token: String, receiver: mpsc::Receiver<UserThreadCommand>) {
                 }
                 continue 'thread_loop;
             },
-            UserThreadCommand::Check => continue 'thread_loop,
-            UserThreadCommand::UserCommand { jsondata, mut stream } => {
+            //Check: do nothing, used for checking that channel still exists
+            UserThreadCommandType::Check => continue 'thread_loop,
+
+            //UserCommand: receive a command from the client, act accordingly
+            UserThreadCommandType::UserCommand { jsondata, mut stream } => {
                 
                 //parse json message
-                let json: serde_json::Value = serde_json::Value::Object(serde_json::from_str(&jsondata).unwrap());
+                let obj = serde_json::from_str::<serde_json::Map<String, serde_json::Value>>(&jsondata);
 
-                //initialize json object
-                let obj: serde_json::Map<String, serde_json::Value>;
-
-                //if the parsed json is an Object, store it in obj
-                if let serde_json::Value::Object(map) = json {
-                    obj = map;
-                }
-                //???
-                else {
-                    println!("what? how did i receive a json object that wasnt an Object? - {}", id);
+                if let Err(_) = obj {
                     http_utils::send_response(http_utils::bad_request().unwrap(), &mut stream);
                     continue 'thread_loop;
-                    //TODO: do something
                 }
+
+                let obj = obj.unwrap();
 
                 //grab the command out of the object
                 let command = obj.get("command");
@@ -215,76 +263,126 @@ fn handle_user(token: String, receiver: mpsc::Receiver<UserThreadCommand>) {
                     continue 'thread_loop;
                 }
 
-                //if the command is String,
-                if let serde_json::Value::String(command) = command.unwrap() {
-                    //match it to get the command to run
-                    //TODO: PULL RESPONSE TO AFTERWARDS
-                    let result = match command.as_str() {
-                        "new" => {
-                            let label: String = String::from(obj.get("label").unwrap().as_str().unwrap());
-                            if label.is_empty() {
-                                Err("empty_label".into())
-                            }else{
-                                let amount = obj.get("amount").unwrap().as_str().unwrap().parse().unwrap();
-                                user_budget.add_expense(&label, crate::budget::dollars_to_cents(amount));
-                            
-                                serde_json::to_string(&user_budget).map_err(|_err| String::from("failed to build json string"))
-                            }
-                        }
-                        "getpaid" => {
-                            match obj.get("amount"){
-                                Some(value) => {
-                                    let value: f32 = value.as_str().unwrap().parse().unwrap();
-                                    user_budget.get_paid_value(crate::budget::dollars_to_cents(value));
-                                    let output = serde_json::to_string(&user_budget).unwrap();
-                                    Ok(output)
-                                },
-                                None => {
-                                    user_budget.get_paid();
-                                    let output = serde_json::to_string(&user_budget).unwrap();
+                let command = command.unwrap().as_str().unwrap_or("");
+                 
+                let result: Result<String, String> = 'command: { match command {
+                    "new" => {
+                        let Some(label) = obj.get("label") else { break 'command Err("missing_new_label_field".into()) };
+                        let Some(label) = label.as_str() else { break 'command Err("invalid_new_label_field".into()) };
 
-                                    Ok(output)
-                                }
-                            }
-                        }
-                        "setincome" => {
-                            match obj.get("amount"){
-                                Some(value) => {
-                                    let value: f32 = value.as_str().unwrap().parse().unwrap();
-                                    user_budget.set_income(crate::budget::dollars_to_cents(value));
-                                    let output = serde_json::to_string(&user_budget).unwrap();
-                                    Ok(output)
-                                },
-                                None => {
-                                    Err("no_amount".into())
-                                }
-                            }
-                        }
-                        _ => {
-                            Err("invalid-command".into())
-                            //unimplemented
-                        }
-                    };//end command match
+                        let Some(amount) = obj.get("amount") else { break 'command Err("missing_new_amount_field".into()) };
+                        let Some(amount) = amount.as_str() else { break 'command Err("invalid_new_amount_field".into()) };
+                        let Ok(amount) = amount.parse::<f32>() else { break 'command Err("invalid_new_amount_value".into()) };
+
+                        user_budget.add_expense(label, budget::dollars_to_cents(amount));
                     
-                    match result {
-                        Ok(output) => {
-                            http_utils::send_response(http_utils::ok_json(StatusCode::OK, output).unwrap(), &mut stream);
+                        serde_json::to_string(&user_budget).map_err(|_err| "failed_to_build_json".into())
+                    }
+                    "getpaid" => {
+                        match obj.get("amount") {
+                            Some(amount) => {
+                                let Some(amount) = amount.as_str() else { break 'command Err("invalid_paid_amount_field".into()) };
+                                let Ok(amount) = amount.parse::<f32>() else { break 'command Err("invalid_paid_amount_value".into()) };
+        
+                                user_budget.get_paid_value(budget::dollars_to_cents(amount));
+                            },
+                            None => {
+                                user_budget.get_paid();
+                            }
                         }
-                        Err(msg) => {
-                            http_utils::send_response(http_utils::bad_request().unwrap(), &mut stream);
+                    
+                        serde_json::to_string(&user_budget).map_err(|_err| "failed_to_build_json".into())
+                    }
+                    "setincome" => {
+                        let Some(amount) = obj.get("amount") else { break 'command Err("missing_income_amount_field".into()) };
+                        let Some(amount) = amount.as_str() else { break 'command Err("invalid_income_amount_field".into()) };
+                        let Ok(amount) = amount.parse::<f32>() else { break 'command Err("invalid_income_amount_value".into()) };
+
+                        user_budget.set_income(budget::dollars_to_cents(amount));
+
+                        serde_json::to_string(&user_budget).map_err(|_err| "failed_to_build_json".into())
+                    }
+                    "raiseincome" => {
+                        let Some(amount) = obj.get("amount") else { break 'command Err("missing_raise_amount_field".into()) };
+                        let Some(amount) = amount.as_str() else { break 'command Err("invalid_raise_amount_field".into()) };
+                        let Ok(amount) = amount.parse::<f32>() else { break 'command Err("invalid_raise_amount_value".into()) };
+
+                        user_budget.add_income(budget::dollars_to_cents(amount));
+
+                        serde_json::to_string(&user_budget).map_err(|_err| "failed_to_build_json".into())
+                    }
+                    "pay" => {
+                        let Some(label) = obj.get("label") else { break 'command Err("missing_payment_label_field".into()) };
+                        let Some(label) = label.as_str() else { break 'command Err("invalid_payment_label_field".into()) };
+
+                        let payment_result = match obj.get("amount") {
+                            Some(amount) => {
+                                let Some(amount) = amount.as_str() else { break 'command Err("invalid_payment_amount_field".into()) };
+                                let Ok(amount) = amount.parse::<f32>() else { break 'command Err("invalid_payment_amount_value".into()) };
+        
+                                user_budget.make_dynamic_payment(label, budget::dollars_to_cents(amount))
+                            },
+                            None => {
+                                user_budget.make_static_payment(label)
+                            }
+                        };
+
+                        if let Err(msg) = payment_result {
+                            break 'command Err(msg)
                         }
+                    
+                        serde_json::to_string(&user_budget).map_err(|_err| "failed_to_build_json".into())
+                    }
+                    "save" => {
+                        let Some(amount) = obj.get("amount") else { break 'command Err("missing_save_amount_field".into()) };
+                        let Some(amount) = amount.as_str() else { break 'command Err("invalid_save_amount_field".into()) };
+                        
+                        let saving_result = match amount.parse::<f32>(){
+                            Ok(amount) => {
+                                user_budget.save(budget::dollars_to_cents(amount))
+                            },
+                            Err(_) => {
+                                if amount == "all" {
+                                    user_budget.save_all()
+                                }
+                                else {
+                                    break 'command Err("invalid_save_amount_value".into())
+                                }
+                            }
+                        };
+
+                        if let Err(msg) = saving_result {
+                            break 'command Err(msg)
+                        }
+
+                        serde_json::to_string(&user_budget).map_err(|_err| "failed_to_build_json".into())
+
                     }
 
-                    //save
-                    endpoints::database::save_user_data(id, &user_budget); 
-
-                } else {
-                    http_utils::send_response(http_utils::bad_request().unwrap(), &mut stream);
+                    _ => {
+                        Err("invalid-command".into())
+                        //unimplemented
+                    }
+                }};//end command match
+                    
+                match result {
+                    Ok(output) => {
+                        http_utils::send_response(http_utils::ok_json(StatusCode::OK, output).unwrap(), &mut stream);
+                    }
+                    Err(msg) => {
+                        eprintln!("thread for user {:?} failed command execution: {:?}", id, msg);
+                        http_utils::send_response(http_utils::bad_request_msg(msg).unwrap(), &mut stream);
+                    }
                 }
+
+                //save
+                endpoints::database::save_user_data(id, &user_budget); 
             },
         }
 
-        println!("\tuser thread took: {:?} --- user: {:?}", now.elapsed(), id);
+        metrics::end(msg.id);
 
     }
+
+    endpoints::database::save_user_data(id, &user_budget);
 }

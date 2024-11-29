@@ -7,7 +7,6 @@ const moneyFormat = new Intl.NumberFormat('en-US', {
     currency: 'USD',
 });
 
-
 window.onload = async () => {
     await fetch("/user", {
         method: "get",
@@ -58,15 +57,23 @@ let updateData = (newdata) => {
     let expectedExpenses = document.getElementById("expectedExpenses");
     let currentExpenses = document.getElementById("currentExpenses");
     
-    username.textContent = newdata.username;
-    income.textContent = "income: " + moneyFormat.format(newdata.expected_income/100);
-    balance.textContent = "balance: " + moneyFormat.format(newdata.current_balance/100);
-    savings.textContent = "savings: " + moneyFormat.format(newdata.savings/100);
+    username.textContent = "Welcome, " + newdata.username + "!";
+    income.textContent = moneyFormat.format(newdata.expected_income/100);
+    balance.textContent = moneyFormat.format(newdata.current_balance/100);
+    savings.textContent = moneyFormat.format(newdata.savings/100);
     
     expectedExpenses.textContent = '';
     for(el in newdata.expected_expenses){
         let data = document.createElement("li");
-        data.textContent = el + ": " + moneyFormat.format(newdata.expected_expenses[el]/100);
+        let label = document.createElement("label");
+        let value = document.createElement("div");
+        value.classList.add("data-item");
+
+        let labelText = el.charAt(0).toUpperCase() + el.substring(1);
+        label.textContent = labelText;
+        value.textContent = moneyFormat.format(newdata.current_expenses[el]/100) + "/" + moneyFormat.format(newdata.expected_expenses[el]/100);
+        data.appendChild(label);
+        data.appendChild(value);
         expectedExpenses.appendChild(data);
     }
     currentExpenses.textContent = '';
@@ -75,6 +82,12 @@ let updateData = (newdata) => {
         data.textContent = el + ": " + moneyFormat.format(newdata.current_expenses[el]/100);
         currentExpenses.appendChild(data);
     }
+    clearInputs();
+}
+
+let clearInputs = () => {
+    document.getElementById("commandtarget").value = "";
+    document.getElementById("commanddollarvalue").value = "";
 }
 
 let addNewExpense = async () => {
@@ -86,6 +99,31 @@ let addNewExpense = async () => {
         label: name,
         amount: amount
     };
+
+    let response = await sendCommand(body)
+
+    if(response.status != 200){
+        alert("bad command!");
+    }
+    else{
+        let data = await response.json();
+
+        updateData(data);
+    }
+}
+
+let payExpense = async () => {
+    let name = document.getElementById("commandtarget").value;
+    let amount = document.getElementById("commanddollarvalue").value;
+
+    let body = {
+        command: "pay",
+        label: name
+    };
+
+    if(amount){
+        body.amount = amount;
+    }
 
     let response = await sendCommand(body)
 
@@ -132,6 +170,50 @@ let setIncome = async () => {
         amount: amount
     };
 
+
+    let response = await sendCommand(body);
+
+    if(response.status != 200){
+        alert("bad command!");
+    }
+    else{
+        let data = await response.json();
+        console.log(data);
+
+        updateData(data)
+    }
+}
+
+let raiseIncome = async () => {
+    let name = document.getElementById("commandtarget").value;
+    let amount = document.getElementById("commanddollarvalue").value;
+
+    let body = {
+        command: "raiseincome",
+        amount: amount
+    };
+
+    let response = await sendCommand(body);
+
+    if(response.status != 200){
+        alert("bad command!");
+    }
+    else{
+        let data = await response.json();
+        console.log(data);
+
+        updateData(data)
+    }
+}
+
+let save = async () => {
+    let name = document.getElementById("commandtarget").value;
+    let amount = document.getElementById("commanddollarvalue").value;
+
+    let body = {
+        command: "save",
+        amount: amount
+    };
 
     let response = await sendCommand(body);
 

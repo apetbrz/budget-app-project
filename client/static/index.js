@@ -40,7 +40,8 @@ let register = async() => {
         handleLogin(response, resbody);
     })
     .catch((why) => {
-        alert("invalid credentials!");
+        console.error(why);
+        alert("Invalid credentials!");
     });
 }
 
@@ -64,15 +65,22 @@ let login = async() => {
         handleLogin(response, resbody);
     })
     .catch((why) => {
-        alert("invalid credentials!");
+        console.error(why);
+        alert("Invalid credentials!");
     });
 }
 
 let handleLogin = async (response, resbody) => {
 
-    if(resbody.token) {
+    if(resbody.error) {
+        alert(resbody.error)
+    }
+    else if(resbody.token) {
         localStorage.setItem("token", resbody.token);
         document.location.href = response.headers.get("Location");
+    }
+    else{
+        alert("Invalid credentials!")
     }
 
 }

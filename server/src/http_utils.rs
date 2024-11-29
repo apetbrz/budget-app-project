@@ -1,27 +1,37 @@
 use http_bytes;
 use http_bytes::http;
+use serde_json::to_string;
 use std::{
-    ffi::OsStr, io::Write, net::TcpStream, path::Path
+    any::Any, ffi::OsStr, io::Write, net::TcpStream, path::Path, thread
 };
 
-use crate::{file_utils, server::TimedStream};
+use crate::{file_utils, metrics::{self, MetricsMessage}, server::TimedStream};
 
-const REQ_BODY_TRUNCATE_LEN: usize = 16;
+const REQ_BODY_TRUNCATE_LEN: usize = 32;
+const SHOW_HEADERS: bool = false;
+const SHOW_BODY: bool = true;
 
 pub fn send_response(
     mut response: http::Response<Vec<u8>>,
     stream: &mut TimedStream,
 ) -> Result<(), std::io::Error> {
-    //print the response
-    println!("\n--> {}\n", stringify_response(&response));
 
+    
+    //print the response
+    println!("\t--> {}\n", stringify_response(&response));
+    
     //write the response to TCP connection stream, as bytes
     stream.write_all(&*serialize_response(&mut response)).unwrap();
-
+    
     //"flush" the stream to send it out
     stream.flush()?;
     
-    println!("  [ response latency: {:?} ]", stream.elapsed());
+    metrics::response_sent(stream.id);
+
+    let binding = thread::current();
+    let thread_name = binding.name().map(|x| x.to_owned()).unwrap_or(format!("{:?}",binding.id()));
+    
+    //eprintln!("  [ response latency: {:?} ] - sent from {:?} thread", stream.elapsed(), thread_name);
     Ok(())
 }
 
@@ -37,26 +47,35 @@ pub fn serialize_response(response: &mut http::Response<Vec<u8>>) -> Vec<u8> {
 
 //stringify_response: takes a response reference and iterate through it, putting it in a string and returning that
 pub fn stringify_response(response: &http::Response<Vec<u8>>) -> String {
-    let mut out = format!("{:?} {:?}\r\n", response.version(), response.status());
-    for (name, value) in response.headers() {
-        out = out + &format!("{}: {}\r\n", name.to_string(), value.to_str().unwrap())[..];
+    let mut out = format!("{:?} {:?}\n\t\tbody: ", response.version(), response.status());
+    
+    if SHOW_HEADERS {
+        for (name, value) in response.headers() {
+            out = out + &format!("{}: {}\r\n", name.to_string(), value.to_str().unwrap())[..];
+        }
     }
 
-    let mut body = response.body().clone();
+    if SHOW_BODY {
+        let mut body = response.body().clone();
 
-    let len = body.len();
+        if body.len() == 0 {
+            out = out + "empty";
+        }
+        else{
+            let len = body.len();
 
-    body.truncate(REQ_BODY_TRUNCATE_LEN);
+            body.truncate(REQ_BODY_TRUNCATE_LEN);
 
-    let new_len = body.len();
+            let new_len = body.len();
 
-    let body = String::from_utf8_lossy(body.as_slice());
+            let body = String::from_utf8_lossy(body.as_slice()).replace("\n","\n\t\t");
 
-    out = out
-        + "\r\n"
-        + &body
-        + "... +"
-        + &(std::cmp::max(0, len as i32 - new_len as i32).to_string());
+            out = out
+                + &body
+                + "... +"
+                + &(std::cmp::max(0, len as i32 - new_len as i32).to_string());
+        }
+    }
 
     out
 }
@@ -139,6 +158,14 @@ pub fn ok_file(
 //builds and returns a generic 400 BAD REQUEST http response
 pub fn bad_request() -> Result<http::Response<Vec<u8>>, String> {
     ok_file(http::StatusCode::BAD_REQUEST, OsStr::new("400.html"))
+}
+
+pub fn content_too_large() -> Result<http::Response<Vec<u8>>, String> {
+    empty_response(http::StatusCode::PAYLOAD_TOO_LARGE)
+}
+
+pub fn bad_request_msg(msg: String) -> Result<http::Response<Vec<u8>>, String> {
+    ok_json(http::StatusCode::BAD_REQUEST, format!("{{\"error\":\"{}\"}}", msg))
 }
 
 //builds and returns a 404 NOT FOUND http response, with the 404.html webpage

@@ -61,8 +61,8 @@ impl Budget {
 
     //refresh(): resets current_expenses
     pub fn refresh(&mut self) {
-        for key in self.current_expenses.iter_mut() {
-            *key.1 = 0;
+        for (key, value) in self.current_expenses.iter_mut() {
+            *value = 0;
         }
     }
 
@@ -106,7 +106,7 @@ impl Budget {
         let amount = if let Some(n) = self.expected_expenses.get(name) {
             n.clone()
         } else {
-            return Err(String::from("expense-not-found"));
+            return Err(String::from("expense_not_found"));
         };
 
         self.make_dynamic_payment(name, amount)
@@ -119,7 +119,7 @@ impl Budget {
             self.current_balance -= cents;
             *n += cents;
         } else {
-            return Err(String::from("expense-not-found"));
+            return Err(String::from("expense_not_found"));
         };
 
         Ok(format!(
@@ -170,7 +170,7 @@ pub fn dollars_to_cents(dollars: f32) -> i64 {
 //parse_dollar_string(): takes a string literal and returns an integer cent amount if valid, or error message if not
 pub fn parse_dollar_string(s: &str) -> Result<i64, String> {
     if s.is_empty() {
-        return Err(String::from("empty-dollar-string"));
+        return Err(String::from("empty_dollar_string"));
     }
     let mut s = s;
     if s.chars().into_iter().next().unwrap() == '$' {
@@ -180,7 +180,7 @@ pub fn parse_dollar_string(s: &str) -> Result<i64, String> {
         Ok(n) => Ok(n * 100),
         Err(er) => match s.parse::<f32>() {
             Ok(m) => Ok(dollars_to_cents(m)),
-            Err(err) => Err(String::from("not-a-number")),
+            Err(err) => Err(String::from("not_a_number")),
         },
     }
 }
