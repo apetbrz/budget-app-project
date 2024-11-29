@@ -6,7 +6,6 @@ use NodeData::*;
 use http_bytes::http;
 
 use crate::endpoints::{self, Content, new_func_endpoint};
-use crate::http_utils;
 
 //RouteNode: struct for each node in routing tree. holds an id (path/subpath)
 //Done as a routing tree to allow for sub-routes and all that

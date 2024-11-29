@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 
 use serde::{self, Deserialize, Serialize};
-use serde_json;
 
 const AUTOMATIC_PAYMENT_PREFIX: char = '*';
 

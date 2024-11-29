@@ -1,12 +1,10 @@
 use std::collections::HashMap;
-use std::net::TcpStream;
 use std::sync::mpsc;
 
 use std::time::{Duration, Instant};
-use std::{env, path, thread};
+use std::thread;
 
 use http_bytes::http::StatusCode;
-use httparse::Status;
 use uuid::Uuid;
 
 use crate::budget::{self, Budget};
@@ -211,7 +209,7 @@ fn handle_user(id: Uuid, token: String, receiver: mpsc::Receiver<UserThreadMessa
     let mut user_budget: Budget = users::get_user_data_from_uuid(id);
 
     //loop through messages from manager
-    'thread_loop: for mut msg in receiver.iter() {
+    'thread_loop: for msg in receiver.iter() {
 
         metrics::arrive(msg.id);
 

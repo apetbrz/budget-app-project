@@ -1,14 +1,12 @@
-use std::{collections::HashSet, env, path::{self, Path}, sync::mpsc, time::{Duration, Instant}};
+use std::{env, time::Instant};
 
 use bcrypt;
-use http_bytes::http::{self, StatusCode};
 use jsonwebtoken;
 use uuid::{self, Uuid};
 
 use crate::{
-    budget::Budget, db::{self, UserAuthRow, UserCredentials, UserInfo}, http_utils, threads::auth::{self, AuthError}
+    budget::Budget, db::{self, UserAuthRow, UserCredentials, UserInfo}, threads::auth::{self, AuthError}
 };
-use crate::threads::auth::AuthRequest;
 
 const HASH_COST: u32 = 7;
 

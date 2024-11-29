@@ -1,11 +1,10 @@
 use http_bytes;
 use http_bytes::http;
-use serde_json::to_string;
 use std::{
-    any::Any, ffi::OsStr, io::Write, net::TcpStream, path::Path, thread
+    ffi::OsStr, io::Write, path::Path, thread
 };
 
-use crate::{file_utils, metrics::{self, MetricsMessage}, server::TimedStream};
+use crate::{file_utils, metrics::{self}, server::TimedStream};
 
 const REQ_BODY_TRUNCATE_LEN: usize = 32;
 const SHOW_HEADERS: bool = false;

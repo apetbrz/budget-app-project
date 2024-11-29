@@ -1,6 +1,5 @@
 use std::{collections::HashMap, sync::{mpsc, Arc, LazyLock, RwLock, Mutex}, thread, time::{Duration, Instant}};
 
-use crate::server::TimedStream;
 
 static METRICS_CHANNEL: LazyLock<Arc<mpsc::Sender<MetricsMessage>>> = LazyLock::new(|| {
     let (sender, receiver) = mpsc::channel::<MetricsMessage>();

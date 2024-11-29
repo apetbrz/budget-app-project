@@ -1,13 +1,9 @@
-use std::time::Instant;
-use std::{net::TcpStream, time::Duration};
 use std::sync::mpsc;
-use std::thread;
 
 use crate::db::UserInfo;
-use crate::endpoints::users::login;
 use crate::metrics;
 use crate::server::TimedStream;
-use crate::{endpoints, http_utils, threads::user_threads};
+use crate::{endpoints, http_utils};
 use http_bytes::http;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;

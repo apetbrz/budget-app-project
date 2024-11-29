@@ -8,14 +8,14 @@ use std::{env, path, thread};
 
 //external crates:
 //used for parsing HTTP requests into objects
-use httparse::{self, Header};
+use httparse::{self};
 //http_bytes replacement for http, as http normally doesnt support raw bytes ??
-use http_bytes::http::{self, StatusCode};
+use http_bytes::http::{self};
 //pretty text colors for emphasis :)
 use colored::Colorize;
 
-use crate::threads::auth::{self, AuthMessage, AuthRequest};
-use crate::{db, endpoints, metrics};
+use crate::threads::auth::{self, AuthMessage};
+use crate::{db, metrics};
 use crate::endpoints::Content;
 use crate::http_utils;
 use crate::router::Router;

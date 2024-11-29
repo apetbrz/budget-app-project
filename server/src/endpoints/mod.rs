@@ -3,7 +3,7 @@ pub mod files;
 pub mod index;
 pub mod users;
 
-use std::{ffi::OsStr, path};
+use std::path;
 
 use http_bytes::http;
 

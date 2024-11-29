@@ -1,12 +1,11 @@
 use std::env;
-use std::ffi::{OsStr, OsString};
+use std::ffi::OsStr;
 use std::fs::{self, File, Metadata};
 use std::io::{prelude::*, BufReader};
 use std::path::PathBuf;
 use std::collections::HashMap;
 use std::sync::{LazyLock, Mutex};
 
-use http_bytes::http;
 
 //CLIENT_FILE_PATH: the location of the files that will be sent to client
 const CLIENT_FILE_PATH: &str = "../client/static";

@@ -1,10 +1,6 @@
-use std::{
-    env,
-    sync::{LazyLock, RwLock},
-};
+use std::sync::{LazyLock, RwLock};
 
 use r2d2_sqlite;
-use rusqlite;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
