@@ -117,12 +117,13 @@ impl std::fmt::Debug for Metric {
 }
 
 struct StreamMetrics {
+    id: usize,
     response_time: Metric,
     thread_times: HashMap<String, Metric>,
 }
 impl StreamMetrics {
-    pub fn new() -> StreamMetrics {
-        StreamMetrics{ response_time: Metric::new(), thread_times: HashMap::new() }
+    pub fn new(id: usize) -> StreamMetrics {
+        StreamMetrics{ id, response_time: Metric::new(), thread_times: HashMap::new() }
     }
     pub fn thread_start(&mut self, name: String) {
         self.thread_times.insert(name, Metric::new());
@@ -143,7 +144,7 @@ impl StreamMetrics {
 }
 impl std::fmt::Display for StreamMetrics {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Response Latency: {}\nThread Latencies: {:?}", self.response_time, self.thread_times)
+        write!(f, "\tRequest #{} Latency: {}\n\tThread Latencies: {:?}", self.id, self.response_time, self.thread_times)
     }
 }
 
@@ -158,7 +159,7 @@ fn take_metrics(receiver: mpsc::Receiver<MetricsMessage>) {
         match message.checkpoint {
             Checkpoint::Init => {}
             Checkpoint::Start => {
-                let stream_metric = StreamMetrics::new();
+                let stream_metric = StreamMetrics::new(message.id);
                 timers.push(stream_metric);
             }
             Checkpoint::Arrive => {

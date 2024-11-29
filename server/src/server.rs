@@ -137,8 +137,8 @@ impl Server {
             match stream {
                 Ok(stream) => {
                     //count req, print
-                    req_count += 1;
                     println!("\n{}{}\n", "~~~~~~<[ REQUEST! ]>~~~~~~ ".bold().bright_green(), req_count);
+                    req_count += 1;
 
                     let stream = TimedStream::new(stream);
                     let stream_id = stream.id;
