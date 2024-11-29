@@ -72,7 +72,8 @@ pub fn stringify_response(response: &http::Response<Vec<u8>>) -> String {
             out = out
                 + &body
                 + "... +"
-                + &(std::cmp::max(0, len as i32 - new_len as i32).to_string());
+                + &(std::cmp::max(0, len as i32 - new_len as i32).to_string())
+                + " bytes";
         }
     }
 

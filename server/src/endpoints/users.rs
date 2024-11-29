@@ -14,7 +14,7 @@ const HASH_COST: u32 = 7;
 //hashes the password, and then inserts into databases
 pub fn register(data: String) -> Result<(Uuid, String), AuthError> {
     
-    eprintln!("\t\tbegin register()");
+    //eprintln!("\t\tbegin register()");
 
     let now = Instant::now();
 
@@ -25,7 +25,7 @@ pub fn register(data: String) -> Result<(Uuid, String), AuthError> {
     //drop lock to the static db, just in case
     drop(user_db_access);
 
-    eprintln!("\t\tconnection acquired: {:?}", now.elapsed());
+    //eprintln!("\t\tconnection acquired: {:?}", now.elapsed());
 
     //attempt to parse the user from the input String
     let mut user: UserCredentials = match serde_json::from_str(data.trim()) {
@@ -45,7 +45,7 @@ pub fn register(data: String) -> Result<(Uuid, String), AuthError> {
         return Err(AuthError::BadCredentials);
     }
     
-    eprintln!("\t\tuser parsed from json string: {:?}", now.elapsed());
+    //eprintln!("\t\tuser parsed from json string: {:?}", now.elapsed());
     
     //attempt to hash the password
     user.password = match bcrypt::hash(user.password, HASH_COST) {
@@ -58,12 +58,12 @@ pub fn register(data: String) -> Result<(Uuid, String), AuthError> {
         }
     };
     
-    eprintln!("\t\tpassword hashed: {:?}", now.elapsed());
+    //eprintln!("\t\tpassword hashed: {:?}", now.elapsed());
 
     //generate a new uuid
     let id = uuid::Uuid::new_v4();
 
-    eprintln!("\t\tuuid generated: {:?}", now.elapsed());
+    //eprintln!("\t\tuuid generated: {:?}", now.elapsed());
 
     //TODO: SQL TRANSACTION RATHER THAN TWO SEPARATE EXECUTIONS
 
@@ -88,12 +88,12 @@ pub fn register(data: String) -> Result<(Uuid, String), AuthError> {
         }
     }
 
-    eprintln!("\t\tuser inserted into auth table: {:?}", now.elapsed());
+    //eprintln!("\t\tuser inserted into auth table: {:?}", now.elapsed());
 
     //generate empty budget to store in database!
     let new_budget = Budget::new(user.username.clone());
 
-    eprintln!("\t\tempty budget generated: {:?}", now.elapsed());
+    //eprintln!("\t\tempty budget generated: {:?}", now.elapsed());
 
     //insert new user data into userdata table
     match conn.execute(
@@ -114,9 +114,9 @@ pub fn register(data: String) -> Result<(Uuid, String), AuthError> {
         }
     }
 
-    eprintln!("\t\tuser added to data table: {:?}", now.elapsed());
+    //eprintln!("\t\tuser added to data table: {:?}", now.elapsed());
 
-    println!("user registered!");
+    //println!("user registered!");
 
     let user_info = UserInfo {
         id: id,
@@ -125,7 +125,7 @@ pub fn register(data: String) -> Result<(Uuid, String), AuthError> {
 
     let token = create_token(user_info);
 
-    eprintln!("\t\ttoken generated - function complete!: {:?}", now.elapsed());
+    //eprintln!("\t\ttoken generated - function complete!: {:?}", now.elapsed());
 
     return Ok((id, token));
 }
@@ -135,7 +135,7 @@ pub fn register(data: String) -> Result<(Uuid, String), AuthError> {
 //and then (if valid) returns a JSONWEBTOKEN
 pub fn login(data: String) -> Result<(Uuid, String), AuthError> {
 
-    eprintln!("\t\tbegin login()");
+    //eprintln!("\t\tbegin login()");
 
     let now = Instant::now();
     
@@ -157,7 +157,7 @@ pub fn login(data: String) -> Result<(Uuid, String), AuthError> {
         return Err(AuthError::BadCredentials);
     }
 
-    eprintln!("\t\tuser parsed from json string: {:?}", now.elapsed());
+    //eprintln!("\t\tuser parsed from json string: {:?}", now.elapsed());
 
     //grab the user's Authentication data from the auth table
     let user_row;
@@ -169,7 +169,7 @@ pub fn login(data: String) -> Result<(Uuid, String), AuthError> {
         return Err(AuthError::BadCredentials);
     }
 
-    eprintln!("\t\tuser grabbed from database by username: {:?}", now.elapsed());
+    //eprintln!("\t\tuser grabbed from database by username: {:?}", now.elapsed());
 
     //verify the input password against the stored hash
 
@@ -177,7 +177,7 @@ pub fn login(data: String) -> Result<(Uuid, String), AuthError> {
         return Err(AuthError::BadRequest)
     };
 
-    eprintln!("\t\tpassword hash checked: {:?}", now.elapsed());
+    //eprintln!("\t\tpassword hash checked: {:?}", now.elapsed());
 
     //if not valid, return BadCredentials message
     if !valid_credentials {
@@ -193,7 +193,7 @@ pub fn login(data: String) -> Result<(Uuid, String), AuthError> {
     //generate a token,
     let token = create_token(user_info);
 
-    eprintln!("\t\ttoken generated - function complete!: {:?}", now.elapsed());
+    //eprintln!("\t\ttoken generated - function complete!: {:?}", now.elapsed());
 
     //and return it!
     return Ok((user_row.uuid, token));

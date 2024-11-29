@@ -251,10 +251,10 @@ impl Server {
 
         //print the request method and path
         println!(
-            "\t<-- {} {} -- body length: {}",
+            "\t<-- {} {} {}",
             req.method.unwrap_or("NONE"),
             req.path.unwrap_or("NONE"),
-            body_size
+            if body_size > 0 { format!("- body size: {} bytes", body_size) } else { "".into() }
         );
 
         //Option likely not needed tbh

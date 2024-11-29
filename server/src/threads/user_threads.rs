@@ -12,7 +12,7 @@ use crate::endpoints::{self, users};
 use crate::{http_utils, metrics};
 use crate::server::TimedStream;
 
-const SECONDS_TO_TIMEOUT_USER_THREAD: u64 = 1800;
+const SECONDS_TO_TIMEOUT_USER_THREAD: u64 = 30 * 60;
 
 pub struct UserManagerThreadMessage {
     pub id: Option<usize>,
@@ -177,7 +177,8 @@ pub fn handle_user_threads(
             }
             //TimeoutCheck: check all threads for timeout
             UserManagerMessageType::TimeoutCheck => {
-                print!("{} -> ", thread_map.len());
+                let output = format!("  [ user manager timeout check ] : {} -> ", thread_map.len());
+
                 //TODO: wait for response (of "all good!" or "im dead!") instead of looping twice!!!
                 for (k, v) in thread_map.iter() {
                     v.send(UserThreadMessage::timeout_check());
@@ -190,7 +191,7 @@ pub fn handle_user_threads(
                         true
                     }
                 });
-                println!("{} threads after timeout", thread_map.len());
+                println!("{}{} threads after timeout", output, thread_map.len());
             }
         }
 
