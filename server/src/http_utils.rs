@@ -18,7 +18,7 @@ pub fn send_response(
 
     
     //print the response
-    println!("{}{}\t| {}\n", "--> ".bright_green().bold(), stream.id, stringify_response(&response));
+    println!("{}{}\t{}\n", "--> ".bright_green().bold(), stream.id, stringify_response(&response));
     
     //write the response to TCP connection stream, as bytes
     stream.write_all(&*serialize_response(&mut response)).unwrap();
