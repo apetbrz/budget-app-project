@@ -1,3 +1,4 @@
+use colored::Colorize;
 use http_bytes;
 use http_bytes::http;
 use std::{
@@ -17,7 +18,7 @@ pub fn send_response(
 
     
     //print the response
-    println!("\t--> {}\n", stringify_response(&response));
+    println!("{}{} | {}\n", "--> ".bright_green().bold(), stream.id, stringify_response(&response));
     
     //write the response to TCP connection stream, as bytes
     stream.write_all(&*serialize_response(&mut response)).unwrap();

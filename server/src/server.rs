@@ -10,7 +10,7 @@ use std::{env, path, thread};
 //used for parsing HTTP requests into objects
 use httparse::{self};
 //http_bytes replacement for http, as http normally doesnt support raw bytes ??
-use http_bytes::http::{self};
+use http_bytes::http::{self, StatusCode};
 //pretty text colors for emphasis :)
 use colored::Colorize;
 
@@ -124,10 +124,6 @@ impl Server {
             generate_timeout_checks(timer_thread_sender);
         }).expect("failed to create timeout_clock thread: OS error");
 
-
-        //request counting statistic
-        let mut req_count = 0;
-        
         metrics::finish_startup();
         println!("listening on {:?} from thread\t{}", self.listener.local_addr().unwrap(), metrics::thread_name_display());
 
@@ -137,8 +133,7 @@ impl Server {
             match stream {
                 Ok(stream) => {
                     //count req, print
-                    println!("\n{}{}\n", "~~~~~~<[ REQUEST! ]>~~~~~~ ".bold().bright_green(), req_count);
-                    req_count += 1;
+                    //println!("\n{}{}\n", "~~~~~~<[ REQUEST! ]>~~~~~~ ".bold().bright_green(), req_count);
 
                     let stream = TimedStream::new(stream);
                     let stream_id = stream.id;
@@ -251,7 +246,9 @@ impl Server {
 
         //print the request method and path
         println!(
-            "\t<-- {} {} {}",
+            "{}{} | {} {} {}",
+            "<-- ".bright_cyan().bold(),
+            stream.id,
             req.method.unwrap_or("NONE"),
             req.path.unwrap_or("NONE"),
             if body_size > 0 { format!("- body size: {} bytes", body_size) } else { "".into() }
@@ -416,7 +413,13 @@ impl Server {
                     self.send_message_to_user_thread(UserManagerThreadMessage::user_data_request(stream.id, token, stream));
                     Ok(())
                 }
-                Content::File(_) => todo!()
+                Content::File(_) => { 
+                    todo!()
+                }
+                Content::TelemetryQuery => {
+                    metrics::query(stream);
+                    Ok(())
+                }
             },
             //if no endpoint is found, run the router's not found handler
             Err(handler) => return http_utils::send_response(handler(), &mut stream),

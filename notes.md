@@ -65,3 +65,7 @@ I put some timers all over the place, to log how long each thread takes. I've st
 ### 11/21/24
 
 It's been a bit since my last update. Other classes got in the way. Updates since: I've polished the HTTP server tremendously. It works pretty well, and I can successfully login/register and perform some (not all, yet) budgeting functions. It's fairly stable, with the worst possible errors being compartmentalized into user threads, meaning if anything any user does breaks something, it only breaks their thread, meaning they are forced to log back in again. I've also done some testing with DoS attacks on the registration, it seems to slow down the auth thread tremendously but has no impact on logged in user functionality. 
+
+### 11/29/24
+
+I've fixed the bugs that I am aware of, it should be presentable now. I've added a nice telemetry system, which can measure how long each thread spends processing each request. It measures from start -> finish per-thread per-request, but ignores when the 

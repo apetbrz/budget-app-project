@@ -1,4 +1,9 @@
-use std::{collections::HashMap, sync::{mpsc, Arc, LazyLock, RwLock, Mutex}, thread, time::{Duration, Instant}};
+use std::{collections::HashMap, ops::Add, sync::{mpsc, Arc, LazyLock, Mutex, RwLock}, thread, time::{Duration, Instant}};
+
+use colored::Colorize;
+use http_bytes::http::StatusCode;
+
+use crate::{http_utils, server::TimedStream};
 
 
 static METRICS_CHANNEL: LazyLock<Arc<mpsc::Sender<MetricsMessage>>> = LazyLock::new(|| {
@@ -43,7 +48,8 @@ enum Checkpoint {
     Start,
     Arrive,
     StreamClose,
-    Leave
+    Leave,
+    Query(TimedStream)
 }
 
 pub fn thread_name() -> String {
@@ -89,6 +95,10 @@ pub fn end(id: usize) {
     METRICS_CHANNEL.send(MetricsMessage::new(id, Checkpoint::Leave));
 }
 
+pub fn query(stream: TimedStream) {
+    METRICS_CHANNEL.send(MetricsMessage::new(0, Checkpoint::Query(stream)));
+}
+
 pub struct Metric {
     pub start_time: Instant,
     pub end_time: Option<Duration>
@@ -118,11 +128,12 @@ impl std::fmt::Debug for Metric {
 struct StreamMetrics {
     id: usize,
     response_time: Metric,
+    real_time: Metric,
     thread_times: HashMap<String, Metric>,
 }
 impl StreamMetrics {
     pub fn new(id: usize) -> StreamMetrics {
-        StreamMetrics{ id, response_time: Metric::new(), thread_times: HashMap::new() }
+        StreamMetrics{ id, response_time: Metric::new(), real_time: Metric::new(), thread_times: HashMap::new() }
     }
     pub fn thread_start(&mut self, name: String) {
         self.thread_times.insert(name, Metric::new());
@@ -143,7 +154,8 @@ impl StreamMetrics {
 }
 impl std::fmt::Display for StreamMetrics {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "\tRequest #{} Latency: {}\n\tThread Latencies: {:?}", self.id, self.response_time, self.thread_times)
+        write!(f, "{}{}\tRequest Latency: {}\n\t\tProcessor Latency: {}\n\t\tThread Latencies: {:?}\n",
+        "  * ".bright_yellow().bold(), self.id, self.response_time, self.real_time, self.thread_times)
     }
 }
 
@@ -151,7 +163,7 @@ fn take_metrics(receiver: mpsc::Receiver<MetricsMessage>) {
 
     println!("\t\tmetrics thread spawned:\t{}", thread_name_display());
 
-    let mut timers: Vec<StreamMetrics> = Vec::new();
+    let mut stream_data: Vec<StreamMetrics> = Vec::new();
 
     for message in receiver.iter() {
 
@@ -159,36 +171,71 @@ fn take_metrics(receiver: mpsc::Receiver<MetricsMessage>) {
             Checkpoint::Init => {}
             Checkpoint::Start => {
                 let stream_metric = StreamMetrics::new(message.id);
-                timers.push(stream_metric);
+                stream_data.push(stream_metric);
             }
             Checkpoint::Arrive => {
-                let Some(metrics) = timers.get_mut(message.id) else {
+                let Some(metrics) = stream_data.get_mut(message.id) else {
                     eprintln!("stream that doesnt exist {} arrived at thread {} !!", message.id, message.thread_source);
                     continue;
                 };
                 metrics.thread_start(message.thread_source);
             }
             Checkpoint::StreamClose => {
-                let Some(metrics) = timers.get_mut(message.id) else {
+                let Some(metrics) = stream_data.get_mut(message.id) else {
                     eprintln!("stream that doesnt exist {} was written to from {} !!", message.id, message.thread_source);
                     continue;
                 };
                 metrics.stream_close();
 
                 if metrics.is_done() {
+                    metrics.real_time.end();
                     println!("{}", metrics);
                 }
             }
             Checkpoint::Leave => {
-                let Some(metrics) = timers.get_mut(message.id) else {
+                let Some(metrics) = stream_data.get_mut(message.id) else {
                     eprintln!("stream that doesnt exist {} left thread {} ??", message.id, message.thread_source);
                     continue;
                 };
                 metrics.thread_end(message.thread_source);
 
                 if metrics.is_done() {
+                    metrics.real_time.end();
                     println!("{}", metrics);
                 }
+            }
+            Checkpoint::Query(mut stream) => {
+                let out = stream_data.iter().fold(
+                    (Duration::new(0,0), Duration::new(0,0), HashMap::<String, (u32, Duration)>::new()),
+                    |(mut res, mut cpu, mut threads), m| {
+
+                        if m.response_time.end_time.is_none() || m.real_time.end_time.is_none() { return (res, cpu, threads); }
+                        
+                        res += m.response_time.end_time.unwrap();
+                        cpu += m.real_time.end_time.unwrap();
+
+                        //TODO: FIX THIS AVERAGE: IGNORES HOW MANY TIMES EACH THREAD ACTUALLY SHOWS UP
+                        //HashMap<String, (usize, Duration)> ???
+                        m.thread_times.iter()
+                        .for_each(|(label, metric)| {
+                            if metric.end_time.is_none() { return; }
+                            let entry = threads.entry(label.clone()).or_insert((1, metric.end_time.unwrap()));
+                            entry.0 += 1;
+                            entry.1 += metric.end_time.unwrap();
+                        });
+
+                        (res, cpu, threads)
+                    }
+                );
+
+                let avg_divisor = stream_data.len() as f32;
+
+                let thread_latencies: HashMap<String, String> = out.2.iter().map(|(l, d)| (l.clone(), format!("{:?}", d.1.div_f32(d.0 as f32)))).collect();
+
+                let output = format!("{{\"average_response_latency\":\"{:?}\",\"average_processor_latency\":\"{:?}\",\"average_thread_latencies\":{:?}}}", out.0.div_f32(avg_divisor), out.1.div_f32(avg_divisor), thread_latencies);
+                
+                http_utils::send_response(http_utils::ok_json(StatusCode::OK, output).unwrap(), &mut stream);
+
             }
         }
         

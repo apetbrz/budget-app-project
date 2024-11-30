@@ -16,7 +16,8 @@ pub enum Content {
     RegisterRequest,
     LogoutRequest,
     UserDataRequest,
-    UserCommand
+    UserCommand,
+    TelemetryQuery
 }
 pub fn new_func_endpoint(
     func: Box<

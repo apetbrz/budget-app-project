@@ -12,7 +12,7 @@ use crate::endpoints::{self, users};
 use crate::{http_utils, metrics};
 use crate::server::TimedStream;
 
-const SECONDS_TO_TIMEOUT_USER_THREAD: u64 = 30 * 60;
+const SECONDS_TO_TIMEOUT_USER_THREAD: u64 = 60;
 
 pub struct UserManagerThreadMessage {
     pub id: Option<usize>,
@@ -183,13 +183,9 @@ pub fn handle_user_threads(
                 for (k, v) in thread_map.iter() {
                     v.send(UserThreadMessage::timeout_check());
                 }
-                thread::sleep(Duration::from_millis(1));
+                thread::sleep(Duration::from_millis(50));
                 thread_map.retain(|k, v| {
-                    if let Err(_) = v.send(UserThreadMessage::check(msg.id)) {
-                        false
-                    } else {
-                        true
-                    }
+                    v.send(UserThreadMessage::check(msg.id)).is_ok()
                 });
                 println!("{}{} threads after timeout", output, thread_map.len());
             }
@@ -212,22 +208,21 @@ fn handle_user(id: Uuid, token: String, receiver: mpsc::Receiver<UserThreadMessa
     //loop through messages from manager
     'thread_loop: for msg in receiver.iter() {
 
-        if let Some(id) = msg.id {metrics::arrive(id) };
-
-        time_of_last_command = Instant::now();
+        if let Some(id) = msg.id { metrics::arrive(id) };
 
         match msg.cmd {
             //UserDataRequest: json stringify the loaded budget data
             UserThreadCommandType::UserDataRequest { mut stream } => {
+                time_of_last_command = Instant::now();
                 let jsondata = serde_json::to_string(&user_budget).unwrap();
                 http_utils::send_response(http_utils::ok_json(StatusCode::OK, jsondata).unwrap(), &mut stream);
                 continue 'thread_loop;
-            },
+            }
             //Shutdown: exit thread loop 
             UserThreadCommandType::Shutdown => {
                 println!("shutting down thread {:?} : {:?}", thread::current().id(), id);
                 break 'thread_loop;
-            },
+            }
             //TimeoutCheck: check how long since last command, and shut down if too long
             UserThreadCommandType::TimeoutCheck => {
                 if time_of_last_command.elapsed() > Duration::from_secs(SECONDS_TO_TIMEOUT_USER_THREAD)
@@ -236,12 +231,14 @@ fn handle_user(id: Uuid, token: String, receiver: mpsc::Receiver<UserThreadMessa
                     break 'thread_loop;
                 }
                 continue 'thread_loop;
-            },
+            }
             //Check: do nothing, used for checking that channel still exists
             UserThreadCommandType::Check => continue 'thread_loop,
 
             //UserCommand: receive a command from the client, act accordingly
             UserThreadCommandType::UserCommand { jsondata, mut stream } => {
+                
+                time_of_last_command = Instant::now();
                 
                 //parse json message
                 let obj = serde_json::from_str::<serde_json::Map<String, serde_json::Value>>(&jsondata);
@@ -376,7 +373,7 @@ fn handle_user(id: Uuid, token: String, receiver: mpsc::Receiver<UserThreadMessa
 
                 //save
                 endpoints::database::save_user_data(id, &user_budget); 
-            },
+            }
         }
 
         if let Some(id) = msg.id { metrics::end(id) };

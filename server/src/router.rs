@@ -253,6 +253,10 @@ impl Router {
             .add_child(
                 "user",
                 Leaf(Content::UserDataRequest)
+            )
+            .add_child(
+                "probe_telemetry",
+                Leaf(Content::TelemetryQuery)
             );
 
         tree
