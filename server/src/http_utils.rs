@@ -47,7 +47,7 @@ pub fn serialize_response(response: &mut http::Response<Vec<u8>>) -> Vec<u8> {
 
 //stringify_response: takes a response reference and iterate through it, putting it in a string and returning that
 pub fn stringify_response(response: &http::Response<Vec<u8>>) -> String {
-    let mut out = format!("{:?} {:?}\n\t\tbody: ", response.version(), response.status());
+    let mut out = format!("{}\n\t\tbody", response.status());
     
     if SHOW_HEADERS {
         for (name, value) in response.headers() {
@@ -59,7 +59,7 @@ pub fn stringify_response(response: &http::Response<Vec<u8>>) -> String {
         let mut body = response.body().clone();
 
         if body.len() == 0 {
-            out = out + "empty";
+            out = out + " empty";
         }
         else{
             let len = body.len();
@@ -71,6 +71,7 @@ pub fn stringify_response(response: &http::Response<Vec<u8>>) -> String {
             let body = String::from_utf8_lossy(body.as_slice()).replace("\n","\n\t\t");
 
             out = out
+                + ": "
                 + &body
                 + "... +"
                 + &(std::cmp::max(0, len as i32 - new_len as i32).to_string())

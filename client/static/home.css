@@ -63,7 +63,7 @@ body{
     max-width: 90%;
     padding: 2ch;
     display: grid;
-    gap: 1ch;
+    gap: 2ch;
 }
 
 .text-inputs {
@@ -95,11 +95,19 @@ button {
 input {
     width: 100%;
     height: 100%;
-    padding: 1ch;
+    padding: 2ch;
     border: none;
     border-radius: 0;
-    background-color: var(--app-btn);
+    background-color: var(--app-bg);
+    
     color: var(--app-txt);
+}
+
+input:focus {
+    outline: solid;
+    outline-width: 2px;
+    outline-color: var(--app-btn);
+    background-color: var(--app-bg);
 }
 
 .data {

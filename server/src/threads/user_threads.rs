@@ -12,7 +12,7 @@ use crate::endpoints::{self, users};
 use crate::{http_utils, metrics};
 use crate::server::TimedStream;
 
-const SECONDS_TO_TIMEOUT_USER_THREAD: u64 = 60;
+const SECONDS_TO_TIMEOUT_USER_THREAD: u64 = 30 * 60;
 
 pub struct UserManagerThreadMessage {
     pub id: Option<usize>,
