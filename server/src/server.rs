@@ -246,7 +246,7 @@ impl Server {
 
         //print the request method and path
         println!(
-            "{}{} | {} {} {}",
+            "{}{}\t| {} {} {}",
             "<-- ".bright_cyan().bold(),
             stream.id,
             req.method.unwrap_or("NONE"),

@@ -154,7 +154,7 @@ impl StreamMetrics {
 }
 impl std::fmt::Display for StreamMetrics {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}{}\tRequest Latency: {}\n\t\tProcessor Latency: {}\n\t\tThread Latencies: {:?}\n",
+        write!(f, "{}{}\t\tRequest Latency: {}\n\t\tProcessor Latency: {}\n\t\tThread Latencies: {:?}\n",
         "  * ".bright_yellow().bold(), self.id, self.response_time, self.real_time, self.thread_times)
     }
 }
