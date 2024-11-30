@@ -187,7 +187,7 @@ pub fn handle_user_threads(
                 thread_map.retain(|k, v| {
                     v.send(UserThreadMessage::check(msg.id)).is_ok()
                 });
-                println!("{}{} threads after timeout", output, thread_map.len());
+                println!("{}{} threads after timeout\n", output, thread_map.len());
             }
         }
 
