@@ -29,7 +29,7 @@ window.onload = async () => {
 }
 
 let sendCommand = async (body) => {
-    let bodyJson = JSON.stringify(body);
+    let bodyJson = JSON.stringify(body).toLowerCase();
 
     //console.log("sending command: " + bodyJson);
 

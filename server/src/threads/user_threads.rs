@@ -268,7 +268,7 @@ fn handle_user(id: Uuid, token: String, receiver: mpsc::Receiver<UserThreadMessa
 
                         let Some(amount) = obj.get("amount") else { break 'command Err("missing_new_amount_field".into()) };
                         let Some(amount) = amount.as_str() else { break 'command Err("invalid_new_amount_field".into()) };
-                        let Ok(amount) = amount.parse::<f32>() else { break 'command Err("invalid_new_amount_value".into()) };
+                        let Ok(amount) = amount.parse::<f64>() else { break 'command Err("invalid_new_amount_value".into()) };
 
                         user_budget.add_expense(label, budget::dollars_to_cents(amount));
                     
@@ -278,7 +278,7 @@ fn handle_user(id: Uuid, token: String, receiver: mpsc::Receiver<UserThreadMessa
                         match obj.get("amount") {
                             Some(amount) => {
                                 let Some(amount) = amount.as_str() else { break 'command Err("invalid_paid_amount_field".into()) };
-                                let Ok(amount) = amount.parse::<f32>() else { break 'command Err("invalid_paid_amount_value".into()) };
+                                let Ok(amount) = amount.parse::<f64>() else { break 'command Err("invalid_paid_amount_value".into()) };
         
                                 user_budget.get_paid_value(budget::dollars_to_cents(amount));
                             },
@@ -292,7 +292,7 @@ fn handle_user(id: Uuid, token: String, receiver: mpsc::Receiver<UserThreadMessa
                     "setincome" => {
                         let Some(amount) = obj.get("amount") else { break 'command Err("missing_income_amount_field".into()) };
                         let Some(amount) = amount.as_str() else { break 'command Err("invalid_income_amount_field".into()) };
-                        let Ok(amount) = amount.parse::<f32>() else { break 'command Err("invalid_income_amount_value".into()) };
+                        let Ok(amount) = amount.parse::<f64>() else { break 'command Err("invalid_income_amount_value".into()) };
 
                         user_budget.set_income(budget::dollars_to_cents(amount));
 
@@ -301,7 +301,7 @@ fn handle_user(id: Uuid, token: String, receiver: mpsc::Receiver<UserThreadMessa
                     "raiseincome" => {
                         let Some(amount) = obj.get("amount") else { break 'command Err("missing_raise_amount_field".into()) };
                         let Some(amount) = amount.as_str() else { break 'command Err("invalid_raise_amount_field".into()) };
-                        let Ok(amount) = amount.parse::<f32>() else { break 'command Err("invalid_raise_amount_value".into()) };
+                        let Ok(amount) = amount.parse::<f64>() else { break 'command Err("invalid_raise_amount_value".into()) };
 
                         user_budget.add_income(budget::dollars_to_cents(amount));
 
@@ -314,7 +314,7 @@ fn handle_user(id: Uuid, token: String, receiver: mpsc::Receiver<UserThreadMessa
                         let payment_result = match obj.get("amount") {
                             Some(amount) => {
                                 let Some(amount) = amount.as_str() else { break 'command Err("invalid_payment_amount_field".into()) };
-                                let Ok(amount) = amount.parse::<f32>() else { break 'command Err("invalid_payment_amount_value".into()) };
+                                let Ok(amount) = amount.parse::<f64>() else { break 'command Err("invalid_payment_amount_value".into()) };
         
                                 user_budget.make_dynamic_payment(label, budget::dollars_to_cents(amount))
                             },
@@ -333,7 +333,7 @@ fn handle_user(id: Uuid, token: String, receiver: mpsc::Receiver<UserThreadMessa
                         let Some(amount) = obj.get("amount") else { break 'command Err("missing_save_amount_field".into()) };
                         let Some(amount) = amount.as_str() else { break 'command Err("invalid_save_amount_field".into()) };
                         
-                        let saving_result = match amount.parse::<f32>(){
+                        let saving_result = match amount.parse::<f64>(){
                             Ok(amount) => {
                                 user_budget.save(budget::dollars_to_cents(amount))
                             },

@@ -162,7 +162,7 @@ pub fn format_dollars(cents: &i64) -> String {
 }
 
 //dollars_to_cents(): takes a decimal amount of dollars and returns it in integer cents
-pub fn dollars_to_cents(dollars: f32) -> i64 {
+pub fn dollars_to_cents(dollars: f64) -> i64 {
     (dollars * 100.0) as i64
 }
 
@@ -177,7 +177,7 @@ pub fn parse_dollar_string(s: &str) -> Result<i64, String> {
     }
     match s.parse::<i64>() {
         Ok(n) => Ok(n * 100),
-        Err(er) => match s.parse::<f32>() {
+        Err(er) => match s.parse::<f64>() {
             Ok(m) => Ok(dollars_to_cents(m)),
             Err(err) => Err(String::from("not_a_number")),
         },

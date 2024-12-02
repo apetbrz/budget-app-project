@@ -21,6 +21,9 @@ html {
     box-sizing: inherit;
 }
 
+body{
+    overflow: auto;
+}
 
 textarea{
     background-color: var(--app-fg);
