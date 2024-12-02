@@ -9,6 +9,7 @@ html, body{
     height: 100%;
     width: 100%;
     margin: 0;
+    font-family: 'Courier New', Courier, monospace;
 }
 
 html {
@@ -90,6 +91,7 @@ button {
     border-radius: 0;
     background-color: var(--app-btn);
     color: var(--app-txt);
+    font-family: inherit;
 }
 
 input {
@@ -99,7 +101,7 @@ input {
     border: none;
     border-radius: 0;
     background-color: var(--app-bg);
-    
+    font-family: inherit;
     color: var(--app-txt);
 }
 
@@ -150,7 +152,11 @@ ul {
 
 li {
     list-style-position: outside;
+    margin: 1ch 0ch;
+    width: 100%;
     list-style: none;
+    display: flexbox;
+    justify-content: space-between;
 }
 
 .footer {

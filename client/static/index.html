@@ -1,30 +1,38 @@
 <!DOCTYPE html>
-<!--[if lt IE 7]>      <html class="no-js lt-ie9 lt-ie8 lt-ie7"> <![endif]-->
-<!--[if IE 7]>         <html class="no-js lt-ie9 lt-ie8"> <![endif]-->
-<!--[if IE 8]>         <html class="no-js lt-ie9"> <![endif]-->
-<!--[if gt IE 8]>      <html class="no-js"> <!--<![endif]-->
-<html>
+<!--this file should be the main page for the site, i.e. what the user sees when the page first loads-->
+<html lang = "en">
     <head>
-        <meta charset="utf-8">
-        <meta http-equiv="X-UA-Compatible" content="IE=edge">
-        <title></title>
-        <meta name="description" content="">
-        <meta name="viewport" content="width=device-width, initial-scale=1">
         <link rel="stylesheet" href="file/index.css">
+        <meta charset="UTF-8">
+        <title>
+            budgetThis
+        </title>
+        <style>
+          
+        </style>
     </head>
     <body>
-        <!--[if lt IE 7]>
-            <p class="browsehappy">You are using an <strong>outdated</strong> browser. Please <a href="#">upgrade your browser</a> to improve your experience.</p>
-        <![endif]-->
-        sup gamers<br>
-        <label for="username">username:</label><br>
-        <input type="text" id="username" name="username"><br>
-        <label for="password">password:</label><br>
-        <input type="password" id="password" name="password"><br>
-        <label for="register">register:</label><br>
-        <button onclick="register()">register</button><br>
-        <label for="login">login:</label><br>
-        <button onclick="login()">login</button><br>
+        <!--this should handle username/password for returning and new users-->
+        <div class="header">budget(This);</div><br>
+            <div class="main-container">
+                <div class="body">
+                    <div class="username">
+                        <label for="username">username:</label><br>
+                        <input type="text" id="username" name="username"><br>
+                    </div>
+                    <div class="password">
+                        <label for="password">password:</label><br>
+                        <input type="password" id="password" name="password"><br>
+                    </div>
+                    <div class="register">
+                        <button onclick="register()">register</button>
+                    </div>
+                    <div class="login">  
+                        <button onclick="login()">login</button><br>
+                    </div>
+                </div>
+            </div>
+            <div class="footer"></div>
         <script src="file/index.js" async defer></script>
     </body>
 </html>

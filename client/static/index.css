@@ -1,0 +1,108 @@
+:root{
+    --app-bg: rgb(50,55,60);
+    --app-fg: rgb(70,75,80);
+    --app-txt: rgb(200,210,220);
+    --app-btn: rgb(100,108,116);
+}
+html{
+    background-color:var(--app-bg);
+    color:var(--app-txt);
+    font-size: 120%;
+    font-family: 'Courier New', Courier, monospace;
+}
+html {
+    box-sizing: border-box;
+    overflow: hidden;
+    background-color: var(--app-fg);
+    color: var(--app-txt);
+    font-size: 120%;
+}
+*, *:before, *:after {
+    box-sizing: inherit;
+}
+
+
+textarea{
+    background-color: var(--app-fg);
+    color: var(--app-txt);
+}
+input{
+    border: none;
+    padding: 1ch;
+    border-radius: 0;
+    background-color:var(--app-bg);
+    color:var(--app-txt);
+}
+button{
+    border: none;
+    border-radius: 0;
+    padding: 1ch 1ch;
+    background-color: var(--app-btn);
+    color:var(--app-txt);
+}
+
+.main-container {
+    display: grid;
+    min-height: 50vh;
+    width: 100%;
+    padding: 1ch 1ch;
+    background-color: var(--app-bg);
+    
+}
+.header {
+    font-size:42px;
+    background-color: var(--app-fg);
+    width: 100%;
+    display: flexbox;
+    align-items: center;
+    padding: 1ch;
+}
+.body {
+    background-color: var(--app-fg);
+    display: grid;
+    gap: 1ch;
+    min-width: max(70vw,28ch);
+    max-width: 100%;
+    padding: min(4ch,5%) 0px;
+    justify-self: center;
+    justify-items: center;
+}
+body{
+    text-align: center;
+    overflow:auto;
+    margin: 0px;
+}
+.username, .password, .login, .register{
+    padding: 2ch;
+
+}
+.footer {
+    background-color: var(--app-fg);
+    grid-row: 3;
+    height: 8ch;
+    width: 100%;
+}
+input {
+    margin: 1ch 0ch;
+    padding: 2ch;
+    border: none;
+    border-radius: 0;
+    background-color: var(--app-bg);
+    font-family: inherit;
+    color: var(--app-txt);
+}
+
+input:focus {
+    outline: solid;
+    outline-width: 2px;
+    outline-color: var(--app-btn);
+    background-color: var(--app-bg);
+}
+button {
+    padding: 1ch 1ch;
+    border: none;
+    border-radius: 0;
+    background-color: var(--app-btn);
+    color: var(--app-txt);
+    font-family: inherit;
+}
