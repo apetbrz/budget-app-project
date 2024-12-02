@@ -18,7 +18,7 @@ pub fn send_response(
 
     
     //print the response
-    println!("{}{}\tfrom {}\n\t\t{}\n", "--> ".bright_green().bold(), stream.id, metrics::thread_name(), stringify_response(&response));
+    println!("{}{}\tfrom {}\n\t\t{}\n", "<-- ".bright_green().bold(), stream.id, metrics::thread_name(), stringify_response(&response));
     
     //write the response to TCP connection stream, as bytes
     stream.write_all(&*serialize_response(&mut response)).unwrap();
@@ -132,7 +132,9 @@ pub fn ok_file(
 ) -> Result<http::Response<Vec<u8>>, String> {
     let path = Path::new(filename);
 
-    let file = file_utils::get_file(filename)?;
+    let Ok(file) = file_utils::get_file(filename) else {
+        return not_found()
+    };
 
     let content_type = match path.extension().and_then(std::ffi::OsStr::to_str) {
         Some("html") => "text/html; charset=utf-8",

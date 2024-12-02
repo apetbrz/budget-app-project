@@ -240,6 +240,14 @@ impl Server {
 
         //req_status: whether the request was successfully received entirely, without data loss
         let Ok(req_status) = req.parse(&buffer) else {
+            println!(
+                "{}{}\t{}\n\t\t\t{}",
+                "--> ".bright_red().bold(),
+                stream.id,
+                "INCOMING REQUEST FAILED TO PARSE:".bright_red(),
+                String::from_utf8_lossy(&buffer)
+
+            );
             http_utils::send_response(http_utils::bad_request().unwrap(), &mut stream);
             return Ok(());
         };
@@ -247,7 +255,7 @@ impl Server {
         //print the request method and path
         println!(
             "{}{}\t{} {} {}",
-            "<-- ".bright_cyan().bold(),
+            "--> ".bright_cyan().bold(),
             stream.id,
             req.method.unwrap_or("NONE"),
             req.path.unwrap_or("NONE"),
