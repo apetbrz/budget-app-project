@@ -100,8 +100,10 @@ pub fn handle_user_threads(
 
     //listen to host
     for msg in thread_receiver_from_main.iter() {
-        
-        if let Some(id) = msg.id {metrics::arrive(id) };
+
+        let mut timeout = false;
+        if let UserManagerMessageType::TimeoutCheck = msg.msg {timeout = true}
+        else if let Some(id) = msg.id { metrics::arrive(id) };
 
         //check message type
         match msg.msg {
@@ -191,7 +193,8 @@ pub fn handle_user_threads(
             }
         }
 
-        if let Some(id) = msg.id { metrics::end(id) };
+        if timeout {}
+        else if let Some(id) = msg.id { metrics::end(id) };
     }
 }
 
