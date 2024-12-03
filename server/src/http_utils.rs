@@ -21,10 +21,12 @@ pub fn send_response(
     println!("{}{}\tfrom {}\n\t\t{}\n", "<-- ".bright_green().bold(), stream.id, metrics::thread_name(), stringify_response(&response));
     
     //write the response to TCP connection stream, as bytes
-    stream.write_all(&*serialize_response(&mut response)).unwrap();
+    let err = stream.write_all(&*serialize_response(&mut response));
     
     //"flush" the stream to send it out
-    stream.flush()?;
+    let err = err.and(stream.flush());
+
+    if err.is_err() { println!("\t\t\t\tfailed to send response!!: {}", stream.id) }
     
     metrics::response_sent(stream.id);
 
