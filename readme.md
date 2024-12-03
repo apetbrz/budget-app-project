@@ -12,13 +12,11 @@ This is a personal budgeting web app to allow users to track their earnings, exp
 
 1. Install Rust, from `https://rustup.rs/`
 
-2. Run once by running `cargo run` within the `server/` folder, to generate preset environment variables. Restart.
-
-3. Open the `server/.env` file and add a `SECRET` value.
+2. `TODO:` Build script 
 
 ### Running
 
- - Run with `cargo run` in the `server/` folder.
+ - `TODO:` Build script
 
 ---
 
