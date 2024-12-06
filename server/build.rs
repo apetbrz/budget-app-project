@@ -7,7 +7,7 @@ fn main() {
         
         let env_file_contents = 
             "SERVER_PORT=\"3000\"\n\
-            SECRET=\n\
+            SECRET=\"REPLACE_ME\"\n\
             DO_CACHING=true";
 
         fs::write(
