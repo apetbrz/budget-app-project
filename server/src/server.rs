@@ -27,6 +27,9 @@ const MAX_REQUEST_BYTES: usize = 4096;
 //time interval (in seconds) for the timeout_clock thread (for checking for inactive user threads)
 const TIMEOUT_INTERVAL: u64 = 60;
 
+const AUTH_DATABASE_INIT: &str = "auth(uuid TEXT UNIQUE NOT NULL, username TEXT UNIQUE NOT NULL, password TEXT NOT NULL, PRIMARY KEY (uuid))";
+const USER_DATABASE_INIT: &str = "users(uuid TEXT UNIQUE NOT NULL, jsondata TEXT NOT NULL, jsonhistory TEXT NOT NULL, PRIMARY KEY (uuid))";
+
 #[derive(Debug)]
 pub struct TimedStream {
     stream: TcpStream,
@@ -69,14 +72,10 @@ impl Server {
             .expect(&format!("listener should have bound to {}", address)[..]);
         let router = Router::new();
 
-        db::USER_DB
-            .read()
-            .unwrap()
-            .create_table(env::var("AUTH_DATABASE_INIT").expect("AUTH_DATABASE_INIT in .env"));
-        db::USER_DB
-            .read()
-            .unwrap()
-            .create_table(env::var("USER_DATABASE_INIT").expect("USER_DATABASE_INIT in .env"));
+        let database = db::USER_DB.read().unwrap();
+
+        database.create_table(String::from(AUTH_DATABASE_INIT));
+        database.create_table(String::from(USER_DATABASE_INIT));
 
         Server {
             listener,

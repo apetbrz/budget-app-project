@@ -38,6 +38,10 @@ fn main() -> Result<(), String> {
         env::var("SERVER_PORT").expect("SERVER_PORT value in .env file")
     );
 
+    if env::var("SECRET").expect("SECRET string in .env required!").is_empty() {
+        panic!("SECRET string in .env required!")
+    };
+
     let mut server = server::Server::new(host_address);
 
     server.listen()

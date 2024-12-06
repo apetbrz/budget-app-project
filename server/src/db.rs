@@ -4,9 +4,10 @@ use r2d2_sqlite;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-//these two static variables ARE THE DATABASES
+//this static variable IS THE DATABASE
 //im statically initializing a RwLock-ed reference
 //to a pool of database connections, to the file
+//... YES, HAVING ONE STATIC GLOBAL DATABASE REFERENCE IS BAD. TODO: MOVE DATABASE INTO SERVER INSTANCE
 pub static USER_DB: LazyLock<RwLock<Database>> =
     LazyLock::new(|| RwLock::new(Database::new("db")));
 

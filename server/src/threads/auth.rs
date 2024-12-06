@@ -85,7 +85,7 @@ pub fn handle_auth_requests(
 
                 let register_result = endpoints::users::register(jsondata);
 
-                //why the fuck did i put a match in the function???
+                //why did i put a match in the function???
                 let _ = http_utils::send_response(match register_result {
                     Ok((id, token)) => {
                         let token_msg = format!("{{\"token\":\"{}\"}}", token);
