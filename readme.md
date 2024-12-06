@@ -16,7 +16,7 @@ These instructions are subject to change, as the program is made more portable a
 
 2. In a shell, navigate into `server/` and run `cargo run` to build and execute.
 
-Note: The generated .env file contains a not-very-secure secret string, please replace it should security matter to you!! Re-run `cargo build` after changing any .env variables. The server defaults to port 3000.
+Note: The generated .env file contains a not-very-secure secret string, please replace it, should security matter to you. Re-run `cargo build` after changing any .env variables. The server defaults to port 3000.
 
 ---
 
