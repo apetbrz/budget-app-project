@@ -16,6 +16,7 @@ pub struct Database {
 }
 impl Database {
     pub fn new(name: &str) -> Database {
+        let _ = std::fs::create_dir("db"); //if err, nothing changes
         let manager = r2d2_sqlite::SqliteConnectionManager::file(format!("db/{}.db", name));
         let pool = r2d2::Pool::new(manager)
             .expect(&format!("error creating r2d2 sqlite pool for {}", name)[..]);
